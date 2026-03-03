@@ -1,4 +1,4 @@
-.PHONY: test-unit test-integration test-e2e test-coverage test-all
+.PHONY: test-unit test-integration test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all
 
 BINARY_NAME=openboot
 BINARY_PATH=./$(BINARY_NAME)
@@ -15,6 +15,16 @@ test-integration:
 
 test-e2e: build
 	go test -v -tags=e2e -short ./...
+
+test-destructive: build
+	go test -v -timeout 15m -tags="e2e,destructive" ./...
+
+test-smoke: build
+	go test -v -timeout 20m -tags="e2e,destructive,smoke" -run TestSmoke ./...
+
+# test-smoke-prebuilt: like test-smoke but skips build (uses pre-built binary in PATH or ./openboot)
+test-smoke-prebuilt:
+	go test -v -timeout 20m -tags="e2e,destructive,smoke" -run TestSmoke ./...
 
 test-coverage:
 	go test -v -timeout 5m -coverprofile=$(COVERAGE_FILE) ./...

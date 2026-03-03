@@ -9,15 +9,19 @@ import (
 )
 
 func BuildTestBinary(t *testing.T) string {
-	tmpDir, err := os.MkdirTemp("", "openboot-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
+	t.Helper()
+
+	// If a pre-built binary exists at project root (e.g. CI release artifact),
+	// use it instead of rebuilding from source.
+	projectRoot := findProjectRoot(t)
+	prebuilt := filepath.Join(projectRoot, "openboot")
+	if info, err := os.Stat(prebuilt); err == nil && !info.IsDir() {
+		t.Logf("using pre-built binary: %s", prebuilt)
+		return prebuilt
 	}
 
-	binaryPath := filepath.Join(tmpDir, "openboot")
+	binaryPath := filepath.Join(t.TempDir(), "openboot")
 	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/openboot")
-
-	projectRoot := findProjectRoot(t)
 	cmd.Dir = projectRoot
 
 	if err := cmd.Run(); err != nil {

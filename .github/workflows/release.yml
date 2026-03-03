@@ -14,7 +14,40 @@ permissions:
   contents: write
 
 jobs:
-  test:
+  detect-release-type:
+    runs-on: ubuntu-latest
+    outputs:
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
+      version: ${{ steps.check.outputs.version }}
+      version_clean: ${{ steps.check.outputs.version_clean }}
+    steps:
+      - name: Determine release type
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION_CLEAN="${VERSION#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_clean=${VERSION_CLEAN}" >> $GITHUB_OUTPUT
+
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "ERROR: version '${VERSION}' does not match expected format vX.Y.Z[-(rc|beta|alpha).N]"
+            exit 1
+          fi
+
+          if [[ "${VERSION_CLEAN}" =~ (rc|beta|alpha) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "Detected pre-release: ${VERSION}"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "Detected stable release: ${VERSION}"
+          fi
+
+  gate-tests:
+    needs: detect-release-type
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -28,11 +61,20 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: go test ./...
+      - name: Unit tests
+        run: make test-unit
+
+      - name: Integration tests
+        run: make test-integration
+
+      - name: E2E tests (safe)
+        run: make test-e2e
+
+      - name: Destructive tests
+        run: make test-destructive
 
   build:
-    needs: test
+    needs: [detect-release-type, gate-tests]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -51,24 +93,13 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      - name: Get version from tag
-        id: version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION="${GITHUB_REF#refs/tags/}"
-          fi
-          # Strip 'v' prefix for the version string
-          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
-
       - name: Build
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: '0'
         run: |
-          go build -ldflags="-s -w -X github.com/openbootdotdev/openboot/internal/cli.version=${{ steps.version.outputs.version }}" -trimpath -o openboot-${{ matrix.os }}-${{ matrix.arch }} ./cmd/openboot
+          go build -ldflags="-s -w -X github.com/openbootdotdev/openboot/internal/cli.version=${{ needs.detect-release-type.outputs.version_clean }}" -trimpath -o openboot-${{ matrix.os }}-${{ matrix.arch }} ./cmd/openboot
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -76,8 +107,54 @@ jobs:
           name: openboot-${{ matrix.os }}-${{ matrix.arch }}
           path: openboot-${{ matrix.os }}-${{ matrix.arch }}
 
+  smoke-test:
+    needs: [detect-release-type, build]
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: openboot-darwin-arm64
+          path: artifacts
+
+      - name: Prepare release binary for testing
+        run: |
+          chmod +x artifacts/openboot-darwin-arm64
+          cp artifacts/openboot-darwin-arm64 ./openboot
+
+      - name: Verify binary version string
+        run: |
+          VERSION_OUTPUT=$(./openboot version 2>&1 || true)
+          echo "Binary version output: ${VERSION_OUTPUT}"
+          EXPECTED="${{ needs.detect-release-type.outputs.version_clean }}"
+          if [[ "${VERSION_OUTPUT}" != *"${EXPECTED}"* ]]; then
+            echo "ERROR: Binary version '${VERSION_OUTPUT}' does not contain expected '${EXPECTED}'"
+            exit 1
+          fi
+
+      - name: Run smoke tests against release binary
+        run: make test-smoke-prebuilt
+
+      - name: Upload snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: |
+            /tmp/openboot-smoke-*.json
+          retention-days: 7
+          if-no-files-found: ignore
+
   release:
-    needs: build
+    needs: [detect-release-type, build, smoke-test]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -91,19 +168,10 @@ jobs:
         with:
           path: artifacts
 
-      - name: Get version
-        id: version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Generate source tarball
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          VERSION_CLEAN="${VERSION#v}"
+          VERSION="${{ needs.detect-release-type.outputs.version }}"
+          VERSION_CLEAN="${{ needs.detect-release-type.outputs.version_clean }}"
           git archive --format=tar.gz --prefix="openboot-${VERSION_CLEAN}/" -o "openboot-${VERSION_CLEAN}.tar.gz" "${VERSION}"
 
       - name: Generate checksums
@@ -112,18 +180,17 @@ jobs:
           find . -type f -name 'openboot-*' -exec sha256sum {} \; | sed 's|./[^/]*/||' > checksums.txt
           mv checksums.txt ..
           cd ..
-          VERSION="${{ steps.version.outputs.version }}"
-          VERSION_CLEAN="${VERSION#v}"
+          VERSION_CLEAN="${{ needs.detect-release-type.outputs.version_clean }}"
           sha256sum "openboot-${VERSION_CLEAN}.tar.gz" >> checksums.txt
           cat checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: OpenBoot ${{ steps.version.outputs.version }}
+          tag_name: ${{ needs.detect-release-type.outputs.version }}
+          name: OpenBoot ${{ needs.detect-release-type.outputs.version }}
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.detect-release-type.outputs.is_prerelease == 'true' }}
           files: |
             artifacts/openboot-darwin-amd64/openboot-darwin-amd64
             artifacts/openboot-darwin-arm64/openboot-darwin-arm64
@@ -144,24 +211,14 @@ jobs:
             | macOS | Intel | `openboot-darwin-amd64` |
 
   update-homebrew-tap:
-    needs: release
+    needs: [detect-release-type, release]
+    if: needs.detect-release-type.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
     steps:
-      - name: Get version
-        id: version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION="${GITHUB_REF#refs/tags/}"
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "version_clean=${VERSION#v}" >> $GITHUB_OUTPUT
-
       - name: Download release binaries and calculate SHA256
         id: sha
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ needs.detect-release-type.outputs.version }}"
           curl -sL -o openboot-darwin-arm64 "https://github.com/openbootdotdev/openboot/releases/download/${VERSION}/openboot-darwin-arm64"
           curl -sL -o openboot-darwin-amd64 "https://github.com/openbootdotdev/openboot/releases/download/${VERSION}/openboot-darwin-amd64"
           echo "arm64=$(sha256sum openboot-darwin-arm64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
@@ -208,7 +265,7 @@ jobs:
             end
           end
           FORMULA
-          sed -i 's/VERSION_PLACEHOLDER/${{ steps.version.outputs.version_clean }}/g' homebrew-tap/Formula/openboot.rb
+          sed -i 's/VERSION_PLACEHOLDER/${{ needs.detect-release-type.outputs.version_clean }}/g' homebrew-tap/Formula/openboot.rb
           sed -i 's/ARM64_SHA_PLACEHOLDER/${{ steps.sha.outputs.arm64 }}/g' homebrew-tap/Formula/openboot.rb
           sed -i 's/AMD64_SHA_PLACEHOLDER/${{ steps.sha.outputs.amd64 }}/g' homebrew-tap/Formula/openboot.rb
           sed -i 's/^          //' homebrew-tap/Formula/openboot.rb
@@ -220,5 +277,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/openboot.rb
           git diff --cached --quiet && echo "No changes" && exit 0
-          git commit -m "openboot ${{ steps.version.outputs.version_clean }}"
+          git commit -m "openboot ${{ needs.detect-release-type.outputs.version_clean }}"
           git push

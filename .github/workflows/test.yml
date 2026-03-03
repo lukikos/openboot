@@ -9,6 +9,13 @@ on:
     branches:
       - main
       - master
+  workflow_dispatch:
+    inputs:
+      run_destructive:
+        description: 'Run destructive (real install) tests'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -33,6 +40,10 @@ jobs:
         run: make test-all
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run destructive tests
+        if: ${{ inputs.run_destructive == true }}
+        run: make test-destructive
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

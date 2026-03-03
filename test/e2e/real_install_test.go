@@ -1,4 +1,4 @@
-//go:build e2e
+//go:build e2e && destructive
 
 package e2e
 
@@ -17,10 +17,6 @@ import (
 )
 
 func TestE2E_InstallSinglePackage_JQ(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping real installation test in short mode")
-	}
-
 	// Given: system does not have jq installed
 	testutil.EnsurePackageNotInstalled(t, "jq")
 	binary := testutil.BuildTestBinary(t)
@@ -59,10 +55,6 @@ func TestE2E_InstallSinglePackage_JQ(t *testing.T) {
 }
 
 func TestE2E_InstallMultiplePackages(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping real installation test in short mode")
-	}
-
 	packages := []string{"bat", "fd"}
 
 	// Given: packages are not installed
@@ -106,10 +98,6 @@ func TestE2E_InstallMultiplePackages(t *testing.T) {
 }
 
 func TestE2E_SnapshotRestoreRealPackages(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping real installation test in short mode")
-	}
-
 	binary := testutil.BuildTestBinary(t)
 	testPkg := "ripgrep"
 
@@ -167,10 +155,6 @@ func TestE2E_SnapshotRestoreRealPackages(t *testing.T) {
 }
 
 func TestE2E_InstallWithInvalidPackage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping real installation test in short mode")
-	}
-
 	binary := testutil.BuildTestBinary(t)
 	invalidPkg := "this-package-definitely-does-not-exist-12345"
 
@@ -229,10 +213,6 @@ func TestE2E_DryRunDoesNotInstall(t *testing.T) {
 }
 
 func TestE2E_BrewUpdateBeforeInstall(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping brew update test in short mode")
-	}
-
 	binary := testutil.BuildTestBinary(t)
 
 	// Given: we request brew update
@@ -254,10 +234,6 @@ func TestE2E_BrewUpdateBeforeInstall(t *testing.T) {
 }
 
 func TestE2E_GitConfigSetup(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping git config test in short mode")
-	}
-
 	binary := testutil.BuildTestBinary(t)
 	testName := "Test E2E User"
 	testEmail := "e2e-test@example.com"

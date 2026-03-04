@@ -554,38 +554,24 @@ func stepDotfiles(cfg *config.Config) error {
 			if dotfilesURL == "" {
 				dotfilesURL = cfg.DotfilesURL
 			}
-			if dotfilesURL == "" {
-				ui.Muted("Skipping dotfiles (no URL provided)")
-				fmt.Println()
-				return nil
-			}
 		} else {
-			setup, err := ui.Confirm("Do you have a dotfiles repository to set up?", false)
+			setup, err := ui.Confirm("Do you have your own dotfiles repository?", false)
 			if err != nil {
 				return err
 			}
-			if !setup {
-				ui.Muted("Skipping dotfiles setup")
-				fmt.Println()
-				return nil
+			if setup {
+				dotfilesURL, err = ui.Input("Dotfiles repository URL", "https://github.com/username/dotfiles")
+				if err != nil {
+					return err
+				}
 			}
 
-			dotfilesURL, err = ui.Input("Dotfiles repository URL", "https://github.com/username/dotfiles")
-			if err != nil {
-				return err
-			}
-
-			// User left it blank: fall back to env var then config
+			// Fall back to env var, then config
 			if dotfilesURL == "" {
 				dotfilesURL = dotfiles.GetDotfilesURL()
 			}
 			if dotfilesURL == "" {
 				dotfilesURL = cfg.DotfilesURL
-			}
-			if dotfilesURL == "" {
-				ui.Muted("Skipping dotfiles setup")
-				fmt.Println()
-				return nil
 			}
 		}
 	} else {
@@ -598,10 +584,14 @@ func stepDotfiles(cfg *config.Config) error {
 		}
 	}
 
-	if dotfilesURL != "" {
-		if err := dotfiles.Clone(dotfilesURL, cfg.DryRun); err != nil {
-			return err
-		}
+	// Fall back to the OpenBoot default dotfiles template.
+	if dotfilesURL == "" {
+		dotfilesURL = dotfiles.DefaultDotfilesURL
+		ui.Info(fmt.Sprintf("Using OpenBoot default dotfiles (%s)", dotfilesURL))
+	}
+
+	if err := dotfiles.Clone(dotfilesURL, cfg.DryRun); err != nil {
+		return err
 	}
 
 	if cfg.Dotfiles == "link" || cfg.Dotfiles == "" {
@@ -659,13 +649,6 @@ func stepShell(cfg *config.Config) error {
 			if !cfg.DryRun {
 				ui.Success("Oh-My-Zsh installed")
 			}
-		}
-
-		if err := shell.ConfigureZshrc(cfg.DryRun); err != nil {
-			return fmt.Errorf("configure .zshrc: %w", err)
-		}
-		if !cfg.DryRun {
-			ui.Success("Shell aliases configured")
 		}
 	}
 
@@ -975,10 +958,6 @@ func stepRestoreShell(cfg *config.Config) error {
 
 	if err := shell.RestoreFromSnapshot(shellCfg.OhMyZsh, shellCfg.Theme, shellCfg.Plugins, cfg.DryRun); err != nil {
 		return err
-	}
-
-	if err := shell.ConfigureZshrc(cfg.DryRun); err != nil {
-		return fmt.Errorf("configure .zshrc: %w", err)
 	}
 
 	if !cfg.DryRun {

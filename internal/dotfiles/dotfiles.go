@@ -14,6 +14,10 @@ import (
 
 const defaultDotfilesDir = ".dotfiles"
 
+// DefaultDotfilesURL is the fallback dotfiles repository used when the user
+// does not supply their own.
+const DefaultDotfilesURL = "https://github.com/openbootdotdev/dotfiles"
+
 func Clone(repoURL string, dryRun bool) error {
 	if repoURL == "" {
 		return nil
@@ -112,6 +116,10 @@ func Link(dryRun bool) error {
 	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
 
 	if _, err := os.Stat(dotfilesPath); os.IsNotExist(err) {
+		if dryRun {
+			fmt.Printf("[DRY-RUN] Would link dotfiles from %s\n", dotfilesPath)
+			return nil
+		}
 		return fmt.Errorf("dotfiles directory not found: %s", dotfilesPath)
 	}
 

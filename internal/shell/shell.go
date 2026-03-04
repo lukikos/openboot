@@ -64,69 +64,6 @@ func InstallOhMyZsh(dryRun bool) error {
 	return nil
 }
 
-const openbootZshrcSentinel = "# OpenBoot additions"
-
-const openbootZshrcBlock = `
-# OpenBoot additions
-# Homebrew (must come before /usr/bin)
-if [ -f /opt/homebrew/bin/brew ]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -f /usr/local/bin/brew ]; then
-  eval "$(/usr/local/bin/brew shellenv)"
-fi
-export PATH="$HOME/.openboot/bin:$HOME/.local/bin:$PATH"
-
-# Modern CLI aliases
-alias ls="eza --icons"
-alias ll="eza -la --icons"
-alias cat="bat"
-alias find="fd"
-alias grep="rg"
-alias top="btop"
-
-# Git aliases
-alias gs="git status"
-alias gd="git diff"
-alias gl="lazygit"
-
-# Zoxide (smart cd)
-eval "$(zoxide init zsh)"
-
-# fzf integration
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-`
-
-func ConfigureZshrc(dryRun bool) error {
-	home, err := system.HomeDir()
-	if err != nil {
-		return err
-	}
-	zshrcPath := filepath.Join(home, ".zshrc")
-
-	if dryRun {
-		fmt.Println("[DRY-RUN] Would add to .zshrc:")
-		fmt.Print(openbootZshrcBlock)
-		return nil
-	}
-
-	existing, _ := os.ReadFile(zshrcPath)
-	if strings.Contains(string(existing), openbootZshrcSentinel) {
-		return nil
-	}
-
-	f, err := os.OpenFile(zshrcPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("open .zshrc: %w", err)
-	}
-	defer f.Close()
-
-	if _, err := f.WriteString(openbootZshrcBlock); err != nil {
-		return fmt.Errorf("write .zshrc: %w", err)
-	}
-
-	return nil
-}
-
 func SetDefaultShell(dryRun bool) error {
 	zshPath := "/bin/zsh"
 	if _, err := os.Stat(zshPath); os.IsNotExist(err) {

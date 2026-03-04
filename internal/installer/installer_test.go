@@ -457,7 +457,7 @@ func TestRunCustomInstall_DotfilesRepoPopulatesDotfilesURL(t *testing.T) {
 	assert.Equal(t, "https://github.com/testuser/dotfiles", cfg.DotfilesURL)
 }
 
-func TestRunCustomInstall_SoftErrorsAreReturned(t *testing.T) {
+func TestRunCustomInstall_DotfilesFallsBackToDefault(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -474,8 +474,7 @@ func TestRunCustomInstall_SoftErrorsAreReturned(t *testing.T) {
 	}
 
 	err := runCustomInstall(cfg)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "dotfiles")
+	assert.NoError(t, err, "should succeed using default dotfiles template")
 }
 
 func TestStepDotfiles_UsesDotfilesURLFromConfig(t *testing.T) {

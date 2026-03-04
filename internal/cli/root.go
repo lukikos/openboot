@@ -36,6 +36,8 @@ shell configuration, and macOS preferences.`,
   # Capture your current environment
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		updater.AutoUpgrade(version)
+
 		if cfg.Silent {
 			if name := os.Getenv("OPENBOOT_GIT_NAME"); name != "" {
 				cfg.GitName = name
@@ -71,7 +73,6 @@ shell configuration, and macOS preferences.`,
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		updater.AutoUpgrade(version)
 		cfg.Version = version
 		err := installer.Run(cfg)
 		if errors.Is(err, installer.ErrUserCancelled) {

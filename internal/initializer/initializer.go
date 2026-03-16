@@ -9,6 +9,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/npm"
+	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
@@ -251,7 +252,11 @@ func runScript(script string, workdir string) error {
 	cmd.Dir = workdir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	tty, opened := system.OpenTTY()
+	if opened {
+		defer tty.Close()
+	}
+	cmd.Stdin = tty
 
 	return cmd.Run()
 }

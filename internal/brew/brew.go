@@ -435,7 +435,11 @@ func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
 	progress.PauseForInteractive()
 
 	cmd := brewInstallCmd("install", "--cask", pkg)
-	cmd.Stdin = os.Stdin
+	tty, opened := system.OpenTTY()
+	if opened {
+		defer tty.Close()
+	}
+	cmd.Stdin = tty
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
@@ -463,6 +467,20 @@ func brewInstallCmd(args ...string) *exec.Cmd {
 	return cmd
 }
 
+// brewCombinedOutputWithTTY runs a brew command capturing combined output while
+// providing a TTY for stdin so that sudo password prompts work. The caller must
+// close the returned *os.File if closeTTY is true.
+func brewCombinedOutputWithTTY(args ...string) (string, error) {
+	cmd := brewInstallCmd(args...)
+	tty, opened := system.OpenTTY()
+	if opened {
+		cmd.Stdin = tty
+		defer tty.Close()
+	}
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
 func installFormulaWithError(pkg string) string {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -474,12 +492,12 @@ func installFormulaWithError(pkg string) string {
 
 		outputStr := string(output)
 		if strings.Contains(strings.ToLower(outputStr), "try again using") && strings.Contains(strings.ToLower(outputStr), "--cask") {
-			cmd2 := brewInstallCmd("install", "--cask", pkg)
-			output2, err2 := cmd2.CombinedOutput()
+			// Cask installs may need sudo for .pkg — use TTY stdin.
+			caskOutput, err2 := brewCombinedOutputWithTTY("install", "--cask", pkg)
 			if err2 == nil {
 				return ""
 			}
-			outputStr = string(output2)
+			outputStr = caskOutput
 		}
 
 		errMsg := parseBrewError(outputStr)
@@ -516,8 +534,8 @@ func isRetryableError(errMsg string) bool {
 func installSmartCaskWithError(pkg string) string {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		cmd := brewInstallCmd("install", "--cask", pkg)
-		output, err := cmd.CombinedOutput()
+		// Cask installs may need sudo for .pkg — use TTY stdin.
+		caskOutput, err := brewCombinedOutputWithTTY("install", "--cask", pkg)
 		if err == nil {
 			return ""
 		}
@@ -528,7 +546,7 @@ func installSmartCaskWithError(pkg string) string {
 			return ""
 		}
 
-		errMsg := parseBrewError(string(output))
+		errMsg := parseBrewError(caskOutput)
 		if errMsg == "unknown error" {
 			errMsg = parseBrewError(string(output2))
 		}
@@ -701,6 +719,11 @@ func Update(dryRun bool) error {
 	cmd := exec.Command("brew", "upgrade")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	tty, opened := system.OpenTTY()
+	if opened {
+		defer tty.Close()
+	}
+	cmd.Stdin = tty
 	return cmd.Run()
 }
 

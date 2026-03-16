@@ -46,6 +46,7 @@ func InstallOhMyZsh(dryRun bool) error {
 	cmd := exec.Command("bash", "-c", script)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
 
@@ -109,7 +110,11 @@ func SetDefaultShell(dryRun bool) error {
 	cmd := exec.Command("chsh", "-s", zshPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	tty, opened := system.OpenTTY()
+	if opened {
+		defer tty.Close()
+	}
+	cmd.Stdin = tty
 	return cmd.Run()
 }
 

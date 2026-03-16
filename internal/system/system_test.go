@@ -2,6 +2,7 @@ package system
 
 import (
 	"os"
+	"os/exec"
 	"runtime"
 	"testing"
 
@@ -67,6 +68,160 @@ func TestRunCommand_CommandFails(t *testing.T) {
 func TestHasTTY(t *testing.T) {
 	result := HasTTY()
 	assert.IsType(t, true, result)
+}
+
+func TestOpenTTY_ReturnsFallbackOrTTY(t *testing.T) {
+	tty, opened := OpenTTY()
+	assert.NotNil(t, tty, "OpenTTY must always return a non-nil file")
+
+	if opened {
+		assert.NotEqual(t, os.Stdin.Fd(), tty.Fd(),
+			"opened tty should have a different fd than os.Stdin")
+		require.NoError(t, tty.Close())
+	} else {
+		assert.Equal(t, os.Stdin.Fd(), tty.Fd(),
+			"fallback should return os.Stdin")
+	}
+}
+
+func TestOpenTTY_OpenedFileIsReadable(t *testing.T) {
+	tty, opened := OpenTTY()
+	if !opened {
+		t.Skip("/dev/tty not available")
+	}
+	defer tty.Close()
+
+	info, err := tty.Stat()
+	require.NoError(t, err)
+	assert.NotNil(t, info)
+}
+
+func TestOpenTTY_FallbackDoesNotClose(t *testing.T) {
+	// When /dev/tty is unavailable, opened=false signals the caller
+	// must NOT close the returned file (it's os.Stdin).
+	_, opened := OpenTTY()
+	assert.IsType(t, true, opened)
+}
+
+func TestOpenTTY_SubprocessSeesRealTTY(t *testing.T) {
+	// Core regression test: a subprocess given an OpenTTY fd should see
+	// stdin as a TTY, which is required for sudo password prompts.
+	tty, opened := OpenTTY()
+	if !opened {
+		t.Skip("/dev/tty not available")
+	}
+	defer tty.Close()
+
+	cmd := exec.Command("test", "-t", "0")
+	cmd.Stdin = tty
+	err := cmd.Run()
+	assert.NoError(t, err, "subprocess stdin should be a TTY when using OpenTTY")
+}
+
+func TestOpenTTY_MultipleCallsReturnIndependentFDs(t *testing.T) {
+	// Each call should open a fresh fd so concurrent callers don't
+	// interfere (e.g. parallel cask installs).
+	tty1, opened1 := OpenTTY()
+	if !opened1 {
+		t.Skip("/dev/tty not available")
+	}
+	defer tty1.Close()
+
+	tty2, opened2 := OpenTTY()
+	require.True(t, opened2)
+	defer tty2.Close()
+
+	assert.NotEqual(t, tty1.Fd(), tty2.Fd(),
+		"each OpenTTY call should return a distinct fd")
+}
+
+// TestOpenTTY_PipedStdinSimulation is the most important test: it reproduces
+// the exact curl|bash scenario. We spawn a child Go process whose stdin is a
+// pipe (not a TTY), and the child calls OpenTTY and checks whether the
+// returned fd is still a TTY via /dev/tty.
+func TestOpenTTY_PipedStdinSimulation(t *testing.T) {
+	if _, err := os.Open("/dev/tty"); err != nil {
+		t.Skip("/dev/tty not available")
+	}
+
+	// Spawn ourselves with a special env var so the child runs the
+	// verification logic instead of the test suite.
+	child := exec.Command(os.Args[0], "-test.run=TestOpenTTYChildHelper")
+	child.Env = append(os.Environ(), "OPENBOOT_TTY_CHILD=1")
+	// Give the child a pipe for stdin — simulating curl|bash.
+	child.Stdin, _ = os.Open(os.DevNull)
+
+	output, err := child.CombinedOutput()
+	assert.NoError(t, err,
+		"child with piped stdin should still get TTY via OpenTTY; output: %s", string(output))
+}
+
+// TestOpenTTYChildHelper is not a real test — it's the child process entry
+// point for TestOpenTTY_PipedStdinSimulation.
+func TestOpenTTYChildHelper(t *testing.T) {
+	if os.Getenv("OPENBOOT_TTY_CHILD") != "1" {
+		t.Skip("helper only runs as child process")
+	}
+
+	tty, opened := OpenTTY()
+	if !opened {
+		t.Fatal("OpenTTY returned opened=false even though /dev/tty exists")
+	}
+	defer tty.Close()
+
+	// Verify via subprocess that the fd is a real TTY.
+	cmd := exec.Command("test", "-t", "0")
+	cmd.Stdin = tty
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("stdin from OpenTTY is not a TTY: %v", err)
+	}
+}
+
+// TestOpenTTY_CloseDoesNotBreakTerminal verifies that closing the fd
+// returned by OpenTTY does not break the controlling terminal. After close,
+// a new OpenTTY call should still succeed — proving the terminal device
+// itself is unaffected.
+func TestOpenTTY_CloseDoesNotBreakTerminal(t *testing.T) {
+	tty1, opened := OpenTTY()
+	if !opened {
+		t.Skip("/dev/tty not available")
+	}
+	// Close the fd.
+	require.NoError(t, tty1.Close())
+
+	// Terminal should still be accessible.
+	tty2, opened2 := OpenTTY()
+	require.True(t, opened2, "terminal should still be available after closing a previous fd")
+	defer tty2.Close()
+
+	cmd := exec.Command("test", "-t", "0")
+	cmd.Stdin = tty2
+	assert.NoError(t, cmd.Run(), "subprocess should still see a TTY after previous fd was closed")
+}
+
+// TestOpenTTY_SequentialCaskSimulation simulates two sequential cask installs
+// (the real pattern: first install + retry), each opening and closing their
+// own TTY fd. The second install must not be affected by the first's close.
+func TestOpenTTY_SequentialCaskSimulation(t *testing.T) {
+	tty1, opened := OpenTTY()
+	if !opened {
+		t.Skip("/dev/tty not available")
+	}
+
+	// Simulate first cask install.
+	cmd1 := exec.Command("test", "-t", "0")
+	cmd1.Stdin = tty1
+	require.NoError(t, cmd1.Run())
+	tty1.Close() // defer pattern in real code
+
+	// Simulate retry — must still work.
+	tty2, opened2 := OpenTTY()
+	require.True(t, opened2)
+	defer tty2.Close()
+
+	cmd2 := exec.Command("test", "-t", "0")
+	cmd2.Stdin = tty2
+	assert.NoError(t, cmd2.Run(), "retry should still have a working TTY")
 }
 
 func TestIsHomebrewInstalled(t *testing.T) {

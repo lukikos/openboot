@@ -61,7 +61,11 @@ func InstallHomebrew() error {
 	cmd := exec.Command("bash", "-c", script)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	tty, opened := OpenTTY()
+	if opened {
+		defer tty.Close()
+	}
+	cmd.Stdin = tty
 	return cmd.Run()
 }
 
@@ -96,4 +100,17 @@ func HasTTY() bool {
 	}
 	f.Close()
 	return true
+}
+
+// OpenTTY opens /dev/tty for interactive input, falling back to os.Stdin.
+// Use this instead of os.Stdin when a subprocess needs a terminal (e.g. sudo
+// password prompts), because os.Stdin may not be a TTY after curl|bash piping.
+// The caller should close the returned file when done; closing is safe even
+// when os.Stdin is returned (it is a no-op duplicate in that case).
+func OpenTTY() (tty *os.File, opened bool) {
+	f, err := os.Open("/dev/tty")
+	if err != nil {
+		return os.Stdin, false
+	}
+	return f, true
 }

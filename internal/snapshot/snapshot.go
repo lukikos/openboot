@@ -31,6 +31,7 @@ type PackageSnapshot struct {
 type MacOSPref struct {
 	Domain string `json:"domain"`
 	Key    string `json:"key"`
+	Type   string `json:"type,omitempty"`
 	Value  string `json:"value"`
 	Desc   string `json:"desc"`
 }

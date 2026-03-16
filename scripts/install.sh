@@ -92,6 +92,12 @@ detect_arch() {
 }
 
 main() {
+    # When run via "curl | bash", stdin is the script content, not the terminal.
+    # Reopen stdin from /dev/tty so interactive prompts (read, sudo, Homebrew) work.
+    if [[ ! -t 0 ]] && [[ -e /dev/tty ]]; then
+        exec < /dev/tty
+    fi
+
     local snapshot_mode=false
     if [[ "${1:-}" == "snapshot" ]]; then
         snapshot_mode=true

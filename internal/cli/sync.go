@@ -325,6 +325,7 @@ func buildSyncPlan(d *syncpkg.SyncDiff, rc *config.RemoteConfig, dryRun bool, in
 				plan.UpdateMacOSPrefs = append(plan.UpdateMacOSPrefs, config.RemoteMacOSPref{
 					Domain: p.Domain,
 					Key:    p.Key,
+					Type:   p.Type,
 					Value:  p.RemoteValue,
 					Desc:   p.Desc,
 				})
@@ -371,6 +372,7 @@ func buildDryRunPlan(d *syncpkg.SyncDiff) *syncpkg.SyncPlan {
 		plan.UpdateMacOSPrefs = append(plan.UpdateMacOSPrefs, config.RemoteMacOSPref{
 			Domain: p.Domain,
 			Key:    p.Key,
+			Type:   p.Type,
 			Value:  p.RemoteValue,
 			Desc:   p.Desc,
 		})

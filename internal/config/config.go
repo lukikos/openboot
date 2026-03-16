@@ -71,6 +71,7 @@ type SnapshotGitConfig struct {
 type SnapshotMacOSPref struct {
 	Domain string
 	Key    string
+	Type   string
 	Value  string
 	Desc   string
 }
@@ -99,6 +100,7 @@ type RemoteShellConfig struct {
 type RemoteMacOSPref struct {
 	Domain string `json:"domain"`
 	Key    string `json:"key"`
+	Type   string `json:"type"`
 	Value  string `json:"value"`
 	Desc   string `json:"desc"`
 }
@@ -132,6 +134,12 @@ func (rc *RemoteConfig) Validate() error {
 	if rc.DotfilesRepo != "" {
 		if !strings.HasPrefix(rc.DotfilesRepo, "https://") && !strings.HasPrefix(rc.DotfilesRepo, "git@") {
 			return fmt.Errorf("invalid dotfiles_repo: %q (only https:// or git@ URLs allowed)", rc.DotfilesRepo)
+		}
+	}
+	validPrefTypes := map[string]bool{"": true, "string": true, "int": true, "bool": true, "float": true}
+	for _, mp := range rc.MacOSPrefs {
+		if !validPrefTypes[mp.Type] {
+			return fmt.Errorf("invalid macos_prefs type: %q for %s %s (allowed: string, int, bool, float)", mp.Type, mp.Domain, mp.Key)
 		}
 	}
 	return nil

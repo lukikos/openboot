@@ -302,6 +302,7 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 		prefs = append(prefs, MacOSPref{
 			Domain: p.Domain,
 			Key:    p.Key,
+			Type:   p.Type,
 			Value:  strings.TrimSpace(string(output)),
 			Desc:   p.Desc,
 		})

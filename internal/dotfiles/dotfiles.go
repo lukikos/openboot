@@ -170,7 +170,29 @@ func restoreFile(backup, original string) {
 	}
 }
 
+func ensureStow(dryRun bool) error {
+	if _, err := exec.LookPath("stow"); err == nil {
+		return nil
+	}
+	if dryRun {
+		fmt.Println("[DRY-RUN] Would install stow via Homebrew")
+		return nil
+	}
+	ui.Info("Installing stow via Homebrew...")
+	cmd := exec.Command("brew", "install", "stow")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install stow: %w", err)
+	}
+	return nil
+}
+
 func linkWithStow(dotfilesPath string, dryRun bool) error {
+	if err := ensureStow(dryRun); err != nil {
+		return err
+	}
+
 	entries, err := os.ReadDir(dotfilesPath)
 	if err != nil {
 		return err

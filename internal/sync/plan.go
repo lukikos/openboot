@@ -176,10 +176,14 @@ func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 	if len(plan.UpdateMacOSPrefs) > 0 {
 		prefs := make([]macos.Preference, len(plan.UpdateMacOSPrefs))
 		for i, rp := range plan.UpdateMacOSPrefs {
+			prefType := rp.Type
+			if prefType == "" {
+				prefType = macos.InferPreferenceType(rp.Value)
+			}
 			prefs[i] = macos.Preference{
 				Domain: rp.Domain,
 				Key:    rp.Key,
-				Type:   macos.InferPreferenceType(rp.Value),
+				Type:   prefType,
 				Value:  rp.Value,
 				Desc:   rp.Desc,
 			}

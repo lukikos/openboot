@@ -549,12 +549,14 @@ func stepDotfiles(cfg *config.Config) error {
 	var dotfilesURL string
 
 	if cfg.Dotfiles == "" {
-		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-			dotfilesURL = dotfiles.GetDotfilesURL()
-			if dotfilesURL == "" {
-				dotfilesURL = cfg.DotfilesURL
-			}
-		} else {
+		// Resolve from env var first, then remote config.
+		dotfilesURL = dotfiles.GetDotfilesURL()
+		if dotfilesURL == "" {
+			dotfilesURL = cfg.DotfilesURL
+		}
+
+		// Only prompt interactively if no URL is already configured.
+		if dotfilesURL == "" && !cfg.Silent && !(cfg.DryRun && !system.HasTTY()) {
 			setup, err := ui.Confirm("Do you have your own dotfiles repository?", false)
 			if err != nil {
 				return err
@@ -564,14 +566,6 @@ func stepDotfiles(cfg *config.Config) error {
 				if err != nil {
 					return err
 				}
-			}
-
-			// Fall back to env var, then config
-			if dotfilesURL == "" {
-				dotfilesURL = dotfiles.GetDotfilesURL()
-			}
-			if dotfilesURL == "" {
-				dotfilesURL = cfg.DotfilesURL
 			}
 		}
 	} else {
@@ -979,10 +973,14 @@ func stepRestoreMacOS(cfg *config.Config) error {
 
 	prefs := make([]macos.Preference, 0, len(cfg.SnapshotMacOS))
 	for _, p := range cfg.SnapshotMacOS {
+		prefType := p.Type
+		if prefType == "" {
+			prefType = macos.InferPreferenceType(p.Value)
+		}
 		prefs = append(prefs, macos.Preference{
 			Domain: p.Domain,
 			Key:    p.Key,
-			Type:   macos.InferPreferenceType(p.Value),
+			Type:   prefType,
 			Value:  p.Value,
 			Desc:   p.Desc,
 		})

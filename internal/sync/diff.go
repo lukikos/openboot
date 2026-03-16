@@ -50,6 +50,7 @@ type ShellDiff struct {
 type MacOSPrefDiff struct {
 	Domain      string
 	Key         string
+	Type        string
 	Desc        string
 	RemoteValue string
 	LocalValue  string
@@ -189,6 +190,7 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 				d.MacOSChanged = append(d.MacOSChanged, MacOSPrefDiff{
 					Domain:      rp.Domain,
 					Key:         rp.Key,
+					Type:        rp.Type,
 					Desc:        rp.Desc,
 					RemoteValue: rp.Value,
 					LocalValue:  localVal,

@@ -717,6 +717,7 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 		cfg.SnapshotMacOS[i] = config.SnapshotMacOSPref{
 			Domain: p.Domain,
 			Key:    p.Key,
+			Type:   p.Type,
 			Value:  p.Value,
 			Desc:   p.Desc,
 		}

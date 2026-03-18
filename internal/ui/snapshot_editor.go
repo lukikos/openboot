@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
@@ -70,23 +71,31 @@ type SnapshotEditorModel struct {
 }
 
 func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
+	// Build a lookup from the embedded catalog for package descriptions.
+	descMap := make(map[string]string)
+	for _, cat := range config.Categories {
+		for _, pkg := range cat.Packages {
+			descMap[pkg.Name] = pkg.Description
+		}
+	}
+
 	tabs := make([]editorTab, 5)
 
 	formulaeItems := make([]editorItem, len(snap.Packages.Formulae))
 	for i, pkg := range snap.Packages.Formulae {
-		formulaeItems[i] = editorItem{name: pkg, selected: true, itemType: editorItemFormula}
+		formulaeItems[i] = editorItem{name: pkg, description: descMap[pkg], selected: true, itemType: editorItemFormula}
 	}
 	tabs[0] = editorTab{name: "Formulae", icon: "🍺", items: formulaeItems, itemType: editorItemFormula}
 
 	caskItems := make([]editorItem, len(snap.Packages.Casks))
 	for i, pkg := range snap.Packages.Casks {
-		caskItems[i] = editorItem{name: pkg, selected: true, itemType: editorItemCask}
+		caskItems[i] = editorItem{name: pkg, description: descMap[pkg], selected: true, itemType: editorItemCask}
 	}
 	tabs[1] = editorTab{name: "Casks", icon: "📦", items: caskItems, itemType: editorItemCask}
 
 	npmItems := make([]editorItem, len(snap.Packages.Npm))
 	for i, pkg := range snap.Packages.Npm {
-		npmItems[i] = editorItem{name: pkg, selected: true, itemType: editorItemNpm}
+		npmItems[i] = editorItem{name: pkg, description: descMap[pkg], selected: true, itemType: editorItemNpm}
 	}
 	tabs[2] = editorTab{name: "NPM", icon: "📜", items: npmItems, itemType: editorItemNpm}
 

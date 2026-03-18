@@ -53,6 +53,11 @@ func Capture() (*Snapshot, error) {
 		return nil, err
 	}
 
+	dotfilesSnap, err := CaptureDotfiles()
+	if err != nil {
+		return nil, err
+	}
+
 	devTools, err := CaptureDevTools()
 	if err != nil {
 		return nil, err
@@ -71,6 +76,7 @@ func Capture() (*Snapshot, error) {
 		MacOSPrefs:    prefs,
 		Shell:         *shellSnap,
 		Git:           *gitSnap,
+		Dotfiles:      *dotfilesSnap,
 		DevTools:      devTools,
 		MatchedPreset: "",
 		CatalogMatch: CatalogMatch{
@@ -134,6 +140,12 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 		}},
 		{"Shell Environment", func() (interface{}, error) { return CaptureShell() }, func(v interface{}) int { return 1 }},
 		{"Git Configuration", func() (interface{}, error) { return CaptureGit() }, func(v interface{}) int { return 1 }},
+		{"Dotfiles", func() (interface{}, error) { return CaptureDotfiles() }, func(v interface{}) int {
+			if s, ok := v.(*DotfilesSnapshot); ok && s.RepoURL != "" {
+				return 1
+			}
+			return 0
+		}},
 		{"Dev Tools", func() (interface{}, error) { return CaptureDevTools() }, func(v interface{}) int {
 			if s, ok := v.([]DevTool); ok {
 				return len(s)
@@ -169,7 +181,8 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	prefs, _ := results[4].([]MacOSPref)
 	shellSnap, _ := results[5].(*ShellSnapshot)
 	gitSnap, _ := results[6].(*GitSnapshot)
-	devTools, _ := results[7].([]DevTool)
+	dotfilesSnap, _ := results[7].(*DotfilesSnapshot)
+	devTools, _ := results[8].([]DevTool)
 
 	if formulae == nil {
 		formulae = []string{}
@@ -192,6 +205,9 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	if gitSnap == nil {
 		gitSnap = &GitSnapshot{}
 	}
+	if dotfilesSnap == nil {
+		dotfilesSnap = &DotfilesSnapshot{}
+	}
 	if devTools == nil {
 		devTools = []DevTool{}
 	}
@@ -209,6 +225,7 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 		MacOSPrefs:    prefs,
 		Shell:         *shellSnap,
 		Git:           *gitSnap,
+		Dotfiles:      *dotfilesSnap,
 		DevTools:      devTools,
 		MatchedPreset: "",
 		CatalogMatch: CatalogMatch{
@@ -401,6 +418,27 @@ func CaptureDevTools() ([]DevTool, error) {
 	}
 
 	return tools, nil
+}
+
+func CaptureDotfiles() (*DotfilesSnapshot, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return &DotfilesSnapshot{}, nil
+	}
+
+	dotfilesPath := filepath.Join(home, ".dotfiles")
+	if _, err := os.Stat(filepath.Join(dotfilesPath, ".git")); err != nil {
+		return &DotfilesSnapshot{}, nil
+	}
+
+	out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output()
+	if err != nil {
+		return &DotfilesSnapshot{}, nil
+	}
+
+	return &DotfilesSnapshot{
+		RepoURL: strings.TrimSpace(string(out)),
+	}, nil
 }
 
 func sanitizePath(path string) string {

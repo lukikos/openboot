@@ -726,3 +726,45 @@ func TestSnapshotEditorAddedItemVisualBadge(t *testing.T) {
 	view := m.View()
 	assert.Contains(t, view, "[+]")
 }
+
+func TestNewSnapshotEditorDescriptionFromCatalog(t *testing.T) {
+	// Find a formula in the embedded catalog.
+	var catalogPkg, catalogDesc string
+	for _, cat := range config.Categories {
+		for _, pkg := range cat.Packages {
+			if !pkg.IsCask && !pkg.IsNpm {
+				catalogPkg = pkg.Name
+				catalogDesc = pkg.Description
+				break
+			}
+		}
+		if catalogPkg != "" {
+			break
+		}
+	}
+	require.NotEmpty(t, catalogPkg)
+
+	snap := &snapshot.Snapshot{
+		Packages: snapshot.PackageSnapshot{
+			Formulae: []string{catalogPkg},
+		},
+	}
+
+	m := NewSnapshotEditor(snap)
+
+	require.Len(t, m.tabs[0].items, 1)
+	assert.Equal(t, catalogDesc, m.tabs[0].items[0].description)
+}
+
+func TestNewSnapshotEditorDescriptionEmptyForUnknown(t *testing.T) {
+	snap := &snapshot.Snapshot{
+		Packages: snapshot.PackageSnapshot{
+			Formulae: []string{"completely-unknown-tool-xyz"},
+		},
+	}
+
+	m := NewSnapshotEditor(snap)
+
+	require.Len(t, m.tabs[0].items, 1)
+	assert.Empty(t, m.tabs[0].items[0].description)
+}

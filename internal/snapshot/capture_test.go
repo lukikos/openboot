@@ -2,6 +2,8 @@ package snapshot
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -361,4 +363,38 @@ func TestCaptureWithProgress_HealthEmptyOnSuccess(t *testing.T) {
 	}
 
 	assert.Empty(t, failedSteps)
+}
+
+func TestCaptureDotfiles_NoDotfilesDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	snap, err := CaptureDotfiles()
+	assert.NoError(t, err)
+	require.NotNil(t, snap)
+	assert.Empty(t, snap.RepoURL)
+}
+
+func TestCaptureDotfiles_DotfilesDirExistsButNoGit(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, ".dotfiles"), 0755))
+
+	snap, err := CaptureDotfiles()
+	assert.NoError(t, err)
+	require.NotNil(t, snap)
+	assert.Empty(t, snap.RepoURL)
+}
+
+func TestCaptureDotfiles_GitDirExistsButNoRemote(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, ".dotfiles", ".git"), 0755))
+
+	snap, err := CaptureDotfiles()
+	assert.NoError(t, err)
+	require.NotNil(t, snap)
+	assert.Empty(t, snap.RepoURL)
 }

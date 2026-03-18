@@ -15,10 +15,15 @@ type Snapshot struct {
 	MacOSPrefs    []MacOSPref     `json:"macos_prefs"`
 	Shell         ShellSnapshot   `json:"shell"`
 	Git           GitSnapshot     `json:"git"`
+	Dotfiles      DotfilesSnapshot `json:"dotfiles"`
 	DevTools      []DevTool       `json:"dev_tools"`
 	MatchedPreset string          `json:"matched_preset"`
 	CatalogMatch  CatalogMatch    `json:"catalog_match"`
 	Health        CaptureHealth   `json:"health"`
+}
+
+type DotfilesSnapshot struct {
+	RepoURL string `json:"repo_url,omitempty"`
 }
 
 type PackageSnapshot struct {

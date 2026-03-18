@@ -873,6 +873,13 @@ func RunFromSnapshot(cfg *config.Config) error {
 		softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
 	}
 
+	if cfg.SnapshotDotfiles != "" {
+		if err := stepDotfiles(cfg); err != nil {
+			ui.Error(fmt.Sprintf("Dotfiles restore failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
+		}
+	}
+
 	showCompletion(cfg)
 
 	if len(softErrs) > 0 {

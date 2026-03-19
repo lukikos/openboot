@@ -1,9 +1,11 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,24 +13,53 @@ import (
 
 func TestTruncateLine(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		maxWidth int
-		expected string
+		name          string
+		input         string
+		maxWidth      int
+		wantLen       int // visual width of result
+		wantSuffix    string
+		wantPassthru  bool
 	}{
-		{"within limit", "hello", 20, "hello"},
-		{"exact limit", "hello", 5, "hello"},
-		{"zero width passthrough", "hello", 0, "hello"},
-		{"negative width passthrough", "hello", -1, "hello"},
-		{"maxWidth < 10 truncates without ellipsis", "hello world", 7, "hello w"},
-		{"maxWidth >= 10 truncates with ellipsis", "hello world foo", 12, "hello wor..."},
-		{"maxWidth >= 10 exact boundary", "hello world!", 15, "hello world!"},
+		{"within limit", "hello", 20, 5, "", true},
+		{"exact limit", "hello", 5, 5, "", true},
+		{"zero width passthrough", "hello", 0, 5, "", true},
+		{"negative width passthrough", "hello", -1, 5, "", true},
+		{"maxWidth < 10 truncates without ellipsis", "hello world", 7, 7, "", false},
+		{"maxWidth >= 10 truncates with ellipsis", "hello world foo", 12, 12, "...", false},
+		{"maxWidth >= 10 exact boundary", "hello world!", 15, 12, "", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := truncateLine(tt.input, tt.maxWidth)
-			assert.Equal(t, tt.expected, result)
+			if tt.wantPassthru {
+				assert.Equal(t, tt.input, result)
+			} else {
+				assert.Equal(t, tt.wantLen, lipgloss.Width(result))
+				if tt.wantSuffix != "" {
+					assert.True(t, strings.HasSuffix(result, tt.wantSuffix))
+				}
+			}
+		})
+	}
+}
+
+func TestPadLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		width    int
+		wantLen  int
+	}{
+		{"pads short line", "hi", 10, 10},
+		{"no padding needed", "hello world", 5, 11}, // already wider, returned as-is
+		{"zero width passthrough", "hi", 0, 2},
+		{"exact width no-op", "hello", 5, 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := padLine(tt.input, tt.width)
+			assert.Equal(t, tt.wantLen, lipgloss.Width(result))
 		})
 	}
 }

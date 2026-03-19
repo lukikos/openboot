@@ -561,13 +561,31 @@ func highlightMatches(text string, matchedIndexes []int) string {
 }
 
 func truncateLine(line string, maxWidth int) string {
-	if maxWidth <= 0 || len(line) <= maxWidth {
+	if maxWidth <= 0 {
+		return line
+	}
+	visualWidth := lipgloss.Width(line)
+	if visualWidth <= maxWidth {
 		return line
 	}
 	if maxWidth < 10 {
-		return line[:maxWidth]
+		return lipgloss.NewStyle().MaxWidth(maxWidth).Render(line)
 	}
-	return line[:maxWidth-3] + "..."
+	return lipgloss.NewStyle().MaxWidth(maxWidth-3).Render(line) + "..."
+}
+
+// padLine pads a rendered line with spaces to the given width, using visual
+// width so that ANSI escape codes do not affect the calculation. This clears
+// any ghost text left by a previously longer line in the same terminal row.
+func padLine(line string, width int) string {
+	if width <= 0 {
+		return line
+	}
+	visualWidth := lipgloss.Width(line)
+	if visualWidth >= width {
+		return line
+	}
+	return line + strings.Repeat(" ", width-visualWidth)
 }
 
 func (m SelectorModel) View() string {

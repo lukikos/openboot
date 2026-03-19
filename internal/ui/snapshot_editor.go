@@ -476,13 +476,13 @@ func (m SnapshotEditorModel) View() string {
 			if item.description != "" {
 				line += " " + descStyle.Render(item.description)
 			}
-			lines = append(lines, truncateLine(line, m.width))
+			lines = append(lines, padLine(truncateLine(line, m.width), m.width))
 		}
 	}
 
-	clearWidth := 80
-	if m.width > 0 && m.width < 80 {
-		clearWidth = m.width
+	clearWidth := m.width
+	if clearWidth <= 0 {
+		clearWidth = 80
 	}
 	clearLine := strings.Repeat(" ", clearWidth)
 	for len(lines) < visibleItems+5 {
@@ -556,9 +556,9 @@ func (m SnapshotEditorModel) viewSearch() string {
 		}
 	}
 
-	clearWidth := 80
-	if m.width > 0 && m.width < 80 {
-		clearWidth = m.width
+	clearWidth := m.width
+	if clearWidth <= 0 {
+		clearWidth = 80
 	}
 	clearLine := strings.Repeat(" ", clearWidth)
 	for len(lines) < visibleItems+2 {
@@ -621,7 +621,7 @@ func (m SnapshotEditorModel) renderSearchItem(item editorItem, globalIdx int) st
 	if item.description != "" {
 		line += " " + descStyle.Render(item.description)
 	}
-	return truncateLine(line, m.width)
+	return padLine(truncateLine(line, m.width), m.width)
 }
 
 func (m SnapshotEditorModel) shellSummary() string {

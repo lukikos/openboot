@@ -750,11 +750,12 @@ func stepPostInstall(cfg *config.Config) error {
 		}
 	}
 
-	// Show command listing for all modes that proceed (interactive, dry-run, silent+allowed)
-	ui.Info(fmt.Sprintf("%d command(s) to run:", len(commands)))
-	for i, cmd := range commands {
-		fmt.Printf("  %d. %s\n", i+1, cmd)
-	}
+	// Show script preview for all modes that proceed (interactive, dry-run, silent+allowed)
+	script := strings.Join(commands, "\n")
+	lineCount := len(commands)
+	ui.Info(fmt.Sprintf("Post-install script (%d lines):", lineCount))
+	fmt.Println()
+	ui.PrintScriptPreview(script)
 	fmt.Println()
 
 	if !cfg.DryRun && !cfg.Silent && system.HasTTY() {
@@ -780,11 +781,8 @@ func stepPostInstall(cfg *config.Config) error {
 
 	var errs []error
 	if cfg.DryRun {
-		for _, command := range commands {
-			fmt.Printf("[DRY-RUN] Would run: %s\n", command)
-		}
+		fmt.Println("[DRY-RUN] Would run the script above")
 	} else {
-		script := strings.Join(commands, "\n")
 		cmd := exec.Command("/bin/zsh", "-c", script)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

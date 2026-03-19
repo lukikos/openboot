@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
@@ -75,6 +76,48 @@ func Muted(text string) {
 
 func Warn(text string) {
 	fmt.Println(yellowStyle.Render("⚠ " + text))
+}
+
+// PrintScriptPreview displays a shell script in a readable box with line numbers.
+// Long lines are truncated with "…" to keep the box at a reasonable width.
+func PrintScriptPreview(script string) {
+	lines := strings.Split(script, "\n")
+	numWidth := len(fmt.Sprintf("%d", len(lines)))
+
+	// Max content width (excluding border/padding): line number + separator + code
+	const maxLineWidth = 76
+	codeWidth := maxLineWidth - numWidth - 2 // 2 for "  " separator
+
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(subtle).
+		PaddingLeft(1).
+		PaddingRight(1)
+
+	commentStyle := lipgloss.NewStyle().Foreground(accent).Bold(true)
+	lineNumStyle := lipgloss.NewStyle().Foreground(subtle)
+
+	var sb strings.Builder
+	for i, line := range lines {
+		num := lineNumStyle.Render(fmt.Sprintf("%*d", numWidth, i+1))
+
+		display := line
+		if len(display) > codeWidth {
+			display = display[:codeWidth-1] + "…"
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			sb.WriteString(fmt.Sprintf("%s  %s", num, commentStyle.Render(display)))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s  %s", num, display))
+		}
+		if i < len(lines)-1 {
+			sb.WriteString("\n")
+		}
+	}
+
+	fmt.Println(boxStyle.Render(sb.String()))
 }
 
 func InputGitConfig() (name, email string, err error) {

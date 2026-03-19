@@ -57,26 +57,35 @@ var DefaultCategories = []PrefCategory{
 		},
 	},
 	{
-		Name: "Safari",
-		Icon: "🌐",
+		Name: "Trackpad",
+		Icon: "🖱",
 		Prefs: []Preference{
-			{"com.apple.Safari", "IncludeDevelopMenu", "bool", "true", "Enable Safari Developer menu"},
-			{"com.apple.Safari", "WebKitDeveloperExtrasEnabledPreferenceKey", "bool", "true", "Enable Safari WebKit dev extras"},
+			{"com.apple.AppleMultitouchTrackpad", "Clicking", "bool", "true", "Tap to click"},
+			{"com.apple.driver.AppleBluetoothMultitouch.trackpad", "Clicking", "bool", "true", "Tap to click (Bluetooth)"},
+			{"com.apple.AppleMultitouchTrackpad", "TrackpadThreeFingerDrag", "bool", "true", "Three-finger drag"},
 		},
 	},
 	{
-		Name: "TextEdit",
-		Icon: "📝",
+		Name: "Keyboard",
+		Icon: "⌨",
 		Prefs: []Preference{
-			{"com.apple.TextEdit", "RichText", "bool", "false", "Use plain text in TextEdit"},
-			{"com.apple.TextEdit", "PlainTextEncoding", "int", "4", "Use UTF-8 in TextEdit"},
+			{"NSGlobalDomain", "com.apple.keyboard.fnState", "bool", "true", "Use F1, F2, etc. as standard function keys"},
 		},
 	},
 	{
-		Name: "TimeMachine",
-		Icon: "💾",
+		Name: "Mission Control",
+		Icon: "🖥",
 		Prefs: []Preference{
-			{"com.apple.TimeMachine", "DoNotOfferNewDisksForBackup", "bool", "true", "Don't prompt for Time Machine on new disks"},
+			{"com.apple.dock", "mru-spaces", "bool", "false", "Don't auto-rearrange Spaces based on recent use"},
+			{"com.apple.dock", "expose-group-apps", "bool", "true", "Group windows by application"},
+		},
+	},
+	{
+		Name: "Security",
+		Icon: "🔒",
+		Prefs: []Preference{
+			{"com.apple.screensaver", "askForPassword", "int", "1", "Require password after sleep or screen saver"},
+			{"com.apple.screensaver", "askForPasswordDelay", "int", "0", "No delay before password required"},
 		},
 	},
 }

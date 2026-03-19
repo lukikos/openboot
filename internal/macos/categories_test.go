@@ -24,7 +24,7 @@ func TestDefaultCategories_ExpectedNames(t *testing.T) {
 	for _, cat := range DefaultCategories {
 		names[cat.Name] = true
 	}
-	for _, expected := range []string{"System", "Finder", "Dock", "Screenshots", "Safari", "TextEdit", "TimeMachine"} {
+	for _, expected := range []string{"Keyboard", "Trackpad", "Dock", "Finder", "Mission Control", "Screenshots", "Security", "System"} {
 		assert.True(t, names[expected], "expected category %q to exist", expected)
 	}
 }

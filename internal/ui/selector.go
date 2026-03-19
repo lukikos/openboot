@@ -633,14 +633,14 @@ func (m SelectorModel) View() string {
 
 		line := fmt.Sprintf("%s%s %s %s", cursor, checkbox, style.Render(pkg.Name), descStyle.Render(pkg.Description))
 		if m.width > 0 {
-			line = truncateLine(line, m.width-2)
+			line = padLine(truncateLine(line, m.width-2), m.width)
 		}
 		lines = append(lines, line)
 	}
 
-	clearWidth := 80
-	if m.width > 0 && m.width < 80 {
-		clearWidth = m.width
+	clearWidth := m.width
+	if clearWidth <= 0 {
+		clearWidth = 80
 	}
 	clearLine := strings.Repeat(" ", clearWidth)
 	for len(lines) < visibleItems+2 {
@@ -864,7 +864,7 @@ func (m SelectorModel) viewSearch() string {
 
 			line := fmt.Sprintf("%s%s %s%s %s", cursor, checkbox, badge, style.Render(displayName), descStyle.Render(pkg.Description))
 			if m.width > 0 {
-				line = truncateLine(line, m.width-2)
+				line = padLine(truncateLine(line, m.width-2), m.width)
 			}
 			lines = append(lines, line)
 			itemsRendered++
@@ -907,7 +907,7 @@ func (m SelectorModel) viewSearch() string {
 				badge := getTypeBadge(pkg)
 				line := fmt.Sprintf("%s%s %s%s %s", cursor, checkbox, badge, style.Render(pkg.Name), descStyle.Render(pkg.Description))
 				if m.width > 0 {
-					line = truncateLine(line, m.width-2)
+					line = padLine(truncateLine(line, m.width-2), m.width)
 				}
 				lines = append(lines, line)
 				itemsRendered++
@@ -915,9 +915,9 @@ func (m SelectorModel) viewSearch() string {
 		}
 	}
 
-	clearWidth := 80
-	if m.width > 0 && m.width < 80 {
-		clearWidth = m.width
+	clearWidth := m.width
+	if clearWidth <= 0 {
+		clearWidth = 80
 	}
 	clearLine := strings.Repeat(" ", clearWidth)
 	for len(lines) < visibleItems+2 {

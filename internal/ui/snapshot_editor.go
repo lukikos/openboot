@@ -477,7 +477,7 @@ func (m SnapshotEditorModel) View() string {
 	visibleItems := m.getVisibleItems()
 
 	if len(tab.items) == 0 {
-		lines = append(lines, padLine(descStyle.Render("  No items"), m.width))
+		lines = append(lines, descStyle.Render("  No items"))
 	} else {
 		scrollOffset := m.scrollOffset
 		if scrollOffset > len(tab.items)-visibleItems {
@@ -542,7 +542,7 @@ func (m SnapshotEditorModel) View() string {
 	lines = append(lines, "")
 	lines = append(lines, helpStyle.Render("/: search online • +: add manually • Space: toggle • a: all • Tab/←→: switch • Enter: confirm • q: cancel"))
 
-	return strings.Join(lines, "\n")
+	return padAllLines(strings.Join(lines, "\n"), m.width)
 }
 
 func (m SnapshotEditorModel) viewSearch() string {
@@ -614,7 +614,7 @@ func (m SnapshotEditorModel) viewSearch() string {
 	lines = append(lines, "")
 	lines = append(lines, helpStyle.Render("↑↓: navigate • Space/Enter: toggle/add • Esc: exit search"))
 
-	return strings.Join(lines, "\n")
+	return padAllLines(strings.Join(lines, "\n"), m.width)
 }
 
 func (m SnapshotEditorModel) toggleOrAddSearchItem() (SnapshotEditorModel, tea.Cmd) {

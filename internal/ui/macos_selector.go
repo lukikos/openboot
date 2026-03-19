@@ -327,7 +327,7 @@ func (m MacOSSelectorModel) View() string {
 	lines = append(lines, "")
 	lines = append(lines, helpStyle.Render("Tab/←→: switch • ↑↓: navigate • Space: toggle • a: all • Enter: confirm • q: quit"))
 
-	return strings.Join(lines, "\n")
+	return padAllLines(strings.Join(lines, "\n"), m.width)
 }
 
 func (m MacOSSelectorModel) macosConfirmationView() string {
@@ -395,7 +395,7 @@ func (m MacOSSelectorModel) macosConfirmationView() string {
 	content.WriteString("\n")
 	content.WriteString(instructionStyle.Render("[Esc] Go Back"))
 
-	return boxStyle.Render(content.String())
+	return padAllLines(boxStyle.Render(content.String()), m.width)
 }
 
 // SelectedPreferences returns the list of preferences the user enabled.

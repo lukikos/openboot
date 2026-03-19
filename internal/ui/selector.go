@@ -588,6 +588,20 @@ func padLine(line string, width int) string {
 	return line + strings.Repeat(" ", width-visualWidth)
 }
 
+// padAllLines pads every line in a rendered view to the given terminal width.
+// This is the root-cause fix for ghost text: instead of padding individual
+// lines (easy to miss), call this once on the final View() output.
+func padAllLines(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = padLine(line, width)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (m SelectorModel) View() string {
 	if m.showConfirmation {
 		return m.confirmationView()
@@ -667,7 +681,7 @@ func (m SelectorModel) View() string {
 	lines = append(lines, "")
 	lines = append(lines, helpStyle.Render("Tab/←→: switch • ↑↓: navigate • Space: toggle • /: search • a: all • Enter: confirm • q: quit"))
 
-	return strings.Join(lines, "\n")
+	return padAllLines(strings.Join(lines, "\n"), m.width)
 }
 
 func (m SelectorModel) confirmationView() string {
@@ -788,7 +802,7 @@ func (m SelectorModel) confirmationView() string {
 	content.WriteString("\n")
 	content.WriteString(instructionStyle.Render("[Esc] Go Back"))
 
-	return boxStyle.Render(content.String())
+	return padAllLines(boxStyle.Render(content.String()), m.width)
 }
 
 func (m SelectorModel) viewSearch() string {
@@ -944,7 +958,7 @@ func (m SelectorModel) viewSearch() string {
 	lines = append(lines, "")
 	lines = append(lines, helpStyle.Render("↑↓: navigate • Space: toggle • Esc: exit search • Enter: confirm"))
 
-	return strings.Join(lines, "\n")
+	return padAllLines(strings.Join(lines, "\n"), m.width)
 }
 
 func (m SelectorModel) Selected() map[string]bool {

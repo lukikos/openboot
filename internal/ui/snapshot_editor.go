@@ -115,7 +115,7 @@ func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
 			itemType:    editorItemMacOSPref,
 		}
 	}
-	tabs[4] = editorTab{name: "macOS Prefs", icon: "⚙️", items: prefItems, itemType: editorItemMacOSPref}
+	tabs[4] = editorTab{name: "macOS Prefs", icon: "⚙️ ", items: prefItems, itemType: editorItemMacOSPref}
 
 	return SnapshotEditorModel{
 		tabs:      tabs,
@@ -477,7 +477,7 @@ func (m SnapshotEditorModel) View() string {
 	visibleItems := m.getVisibleItems()
 
 	if len(tab.items) == 0 {
-		lines = append(lines, descStyle.Render("  No items"))
+		lines = append(lines, padLine(descStyle.Render("  No items"), m.width))
 	} else {
 		scrollOffset := m.scrollOffset
 		if scrollOffset > len(tab.items)-visibleItems {

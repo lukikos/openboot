@@ -97,6 +97,89 @@ type RemoteMacOSPref struct {
 	Desc   string `json:"desc"`
 }
 
+// typedPackage represents a package entry with name and type, as returned
+// by the openboot.dev API (e.g. {"name":"git","type":"formula"}).
+type typedPackage struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+// UnmarshalRemoteConfigFlexible parses JSON into a RemoteConfig, accepting
+// packages in either flat string array format (["git","curl"]) or typed
+// object array format ([{"name":"git","type":"formula"}]).
+func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
+	// Try direct unmarshal first (flat string arrays).
+	var rc RemoteConfig
+	if err := json.Unmarshal(data, &rc); err == nil {
+		return &rc, nil
+	}
+
+	// Extract packages as typed objects and convert to flat arrays.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	pkgData, ok := raw["packages"]
+	if !ok {
+		return nil, fmt.Errorf("missing packages field")
+	}
+
+	var typed []typedPackage
+	if err := json.Unmarshal(pkgData, &typed); err != nil {
+		return nil, fmt.Errorf("packages must be a string array or typed object array: %w", err)
+	}
+
+	var formulae, casks, taps, npm []string
+	for _, p := range typed {
+		switch p.Type {
+		case "cask":
+			casks = append(casks, p.Name)
+		case "tap":
+			taps = append(taps, p.Name)
+		case "npm":
+			npm = append(npm, p.Name)
+		default:
+			formulae = append(formulae, p.Name)
+		}
+	}
+
+	// Replace packages with flat arrays and re-unmarshal.
+	converted := make(map[string]json.RawMessage, len(raw))
+	for k, v := range raw {
+		converted[k] = v
+	}
+	if f, err := json.Marshal(formulae); err == nil {
+		converted["packages"] = f
+	}
+	if len(casks) > 0 {
+		if c, err := json.Marshal(casks); err == nil {
+			converted["casks"] = c
+		}
+	}
+	if len(taps) > 0 {
+		if t, err := json.Marshal(taps); err == nil {
+			converted["taps"] = t
+		}
+	}
+	if len(npm) > 0 {
+		if n, err := json.Marshal(npm); err == nil {
+			converted["npm"] = n
+		}
+	}
+
+	normalised, err := json.Marshal(converted)
+	if err != nil {
+		return nil, fmt.Errorf("normalise config: %w", err)
+	}
+
+	var result RemoteConfig
+	if err := json.Unmarshal(normalised, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 var (
 	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
 	tapNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
@@ -256,14 +339,14 @@ func LoadRemoteConfigFromFile(path string) (*RemoteConfig, error) {
 		return loadSnapshotAsRemoteConfig(data)
 	}
 
-	var rc RemoteConfig
-	if err := json.Unmarshal(data, &rc); err != nil {
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	if err != nil {
 		return nil, fmt.Errorf("parse remote config: %w", err)
 	}
 	if err := rc.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
-	return &rc, nil
+	return rc, nil
 }
 
 // snapshotFile mirrors the subset of snapshot.Snapshot needed for conversion,

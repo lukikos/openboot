@@ -345,6 +345,93 @@ func TestFetchRemoteConfig_NoAliasNoDefault(t *testing.T) {
 	assert.Contains(t, err.Error(), "config not found: testuser/default")
 }
 
+func TestUnmarshalRemoteConfigFlexible_FlatStringArrays(t *testing.T) {
+	data := []byte(`{
+		"username": "testuser",
+		"packages": ["git", "curl"],
+		"casks": ["firefox"],
+		"taps": ["homebrew/cask-fonts"],
+		"npm": ["typescript"]
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"git", "curl"}, rc.Packages)
+	assert.Equal(t, []string{"firefox"}, rc.Casks)
+	assert.Equal(t, []string{"homebrew/cask-fonts"}, rc.Taps)
+	assert.Equal(t, []string{"typescript"}, rc.Npm)
+}
+
+func TestUnmarshalRemoteConfigFlexible_TypedObjectArray(t *testing.T) {
+	data := []byte(`{
+		"username": "testuser",
+		"name": "My Setup",
+		"packages": [
+			{"name": "git", "type": "formula"},
+			{"name": "curl", "type": "formula"},
+			{"name": "firefox", "type": "cask"},
+			{"name": "homebrew/cask-fonts", "type": "tap"},
+			{"name": "typescript", "type": "npm"}
+		]
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	assert.Equal(t, "testuser", rc.Username)
+	assert.Equal(t, "My Setup", rc.Name)
+	assert.Equal(t, []string{"git", "curl"}, rc.Packages)
+	assert.Equal(t, []string{"firefox"}, rc.Casks)
+	assert.Equal(t, []string{"homebrew/cask-fonts"}, rc.Taps)
+	assert.Equal(t, []string{"typescript"}, rc.Npm)
+}
+
+func TestUnmarshalRemoteConfigFlexible_TypedObjectWithDesc(t *testing.T) {
+	data := []byte(`{
+		"packages": [
+			{"name": "git", "type": "formula", "desc": "Version control"},
+			{"name": "firefox", "type": "cask", "desc": "Web browser"}
+		]
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"git"}, rc.Packages)
+	assert.Equal(t, []string{"firefox"}, rc.Casks)
+}
+
+func TestUnmarshalRemoteConfigFlexible_PreservesOtherFields(t *testing.T) {
+	data := []byte(`{
+		"username": "testuser",
+		"slug": "myconfig",
+		"name": "My Config",
+		"preset": "developer",
+		"dotfiles_repo": "https://github.com/testuser/dotfiles",
+		"packages": [
+			{"name": "git", "type": "formula"}
+		],
+		"shell": {"oh_my_zsh": true, "theme": "robbyrussell", "plugins": ["git"]},
+		"macos_prefs": [{"domain": "com.apple.dock", "key": "autohide", "type": "bool", "value": "true"}]
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	assert.Equal(t, "testuser", rc.Username)
+	assert.Equal(t, "myconfig", rc.Slug)
+	assert.Equal(t, "developer", rc.Preset)
+	assert.Equal(t, "https://github.com/testuser/dotfiles", rc.DotfilesRepo)
+	assert.Equal(t, []string{"git"}, rc.Packages)
+	require.NotNil(t, rc.Shell)
+	assert.True(t, rc.Shell.OhMyZsh)
+	assert.Equal(t, "robbyrussell", rc.Shell.Theme)
+	assert.Len(t, rc.MacOSPrefs, 1)
+}
+
+func TestUnmarshalRemoteConfigFlexible_InvalidJSON(t *testing.T) {
+	data := []byte(`not json`)
+	_, err := UnmarshalRemoteConfigFlexible(data)
+	assert.Error(t, err)
+}
+
 func TestFetchRemoteConfig_ExplicitSlugNoFallback(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/default/config", r.URL.Path)

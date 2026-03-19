@@ -111,8 +111,8 @@ func pushSnapshot(data []byte, slug, token, username, apiBase string) error {
 }
 
 func pushConfig(data []byte, slug, token, username, apiBase string) error {
-	var rc config.RemoteConfig
-	if err := json.Unmarshal(data, &rc); err != nil {
+	rc, err := config.UnmarshalRemoteConfigFlexible(data)
+	if err != nil {
 		return fmt.Errorf("parse config: %w", err)
 	}
 	if err := rc.Validate(); err != nil {
@@ -125,7 +125,7 @@ func pushConfig(data []byte, slug, token, username, apiBase string) error {
 	}
 
 	// Convert RemoteConfig to API format: packages as [{name, type}]
-	packages := remoteConfigToAPIPackages(&rc)
+	packages := remoteConfigToAPIPackages(rc)
 
 	reqBody := map[string]interface{}{
 		"name":        name,

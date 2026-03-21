@@ -55,12 +55,20 @@ func DiffFromLists(formulae, casks, npmPkgs, taps []string) (*CleanResult, error
 func diff(desiredFormulae, desiredCasks, desiredNpm, desiredTaps map[string]bool) (*CleanResult, error) {
 	result := &CleanResult{}
 
-	installedFormulae, installedCasks, err := brew.GetInstalledPackages()
+	// Use brew leaves (top-level only) for formulae to stay consistent with
+	// snapshot captures and the diff command.  Dependencies are cleaned up
+	// automatically by `brew autoremove` when their parent is removed.
+	installedLeaves, err := brew.GetInstalledLeaves()
 	if err != nil {
-		return nil, fmt.Errorf("list brew packages: %w", err)
+		return nil, fmt.Errorf("list brew leaves: %w", err)
 	}
 
-	for pkg := range installedFormulae {
+	_, installedCasks, err := brew.GetInstalledPackages()
+	if err != nil {
+		return nil, fmt.Errorf("list brew casks: %w", err)
+	}
+
+	for pkg := range installedLeaves {
 		if !desiredFormulae[pkg] {
 			result.ExtraFormulae = append(result.ExtraFormulae, pkg)
 		}

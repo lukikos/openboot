@@ -15,11 +15,13 @@ import (
 func TestIntegration_Cleaner_DiffFromLists_AllDesiredInstalled(t *testing.T) {
 	// Given: brew is installed and we know what's installed
 	require.True(t, brew.IsInstalled(), "brew must be installed")
-	formulae, casks, err := brew.GetInstalledPackages()
+	leaves, err := brew.GetInstalledLeaves()
+	require.NoError(t, err)
+	_, casks, err := brew.GetInstalledPackages()
 	require.NoError(t, err)
 
-	desiredFormulae := make([]string, 0, len(formulae))
-	for name := range formulae {
+	desiredFormulae := make([]string, 0, len(leaves))
+	for name := range leaves {
 		desiredFormulae = append(desiredFormulae, name)
 	}
 	desiredCasks := make([]string, 0, len(casks))
@@ -27,66 +29,70 @@ func TestIntegration_Cleaner_DiffFromLists_AllDesiredInstalled(t *testing.T) {
 		desiredCasks = append(desiredCasks, name)
 	}
 
-	// When: desired == installed
+	// When: desired == installed leaves
 	result, err := cleaner.DiffFromLists(desiredFormulae, desiredCasks, nil, nil)
 
 	// Then: no extras detected
 	require.NoError(t, err)
-	assert.Empty(t, result.ExtraFormulae, "no extra formulae when desired matches installed")
+	assert.Empty(t, result.ExtraFormulae, "no extra formulae when desired matches installed leaves")
 	assert.Empty(t, result.ExtraCasks, "no extra casks when desired matches installed")
 }
 
 func TestIntegration_Cleaner_DiffFromLists_EmptyDesired(t *testing.T) {
 	// Given: brew is installed with at least one package
 	require.True(t, brew.IsInstalled(), "brew must be installed")
-	formulae, casks, err := brew.GetInstalledPackages()
+	leaves, err := brew.GetInstalledLeaves()
+	require.NoError(t, err)
+	_, casks, err := brew.GetInstalledPackages()
 	require.NoError(t, err)
 
 	// When: desired lists are empty (want nothing installed)
 	result, err := cleaner.DiffFromLists(nil, nil, nil, nil)
 
-	// Then: everything installed shows up as extra
+	// Then: all top-level formulae (leaves) show up as extra
 	require.NoError(t, err)
-	assert.Equal(t, len(formulae), len(result.ExtraFormulae),
-		"all installed formulae should appear as extra when desired is empty")
+	assert.Equal(t, len(leaves), len(result.ExtraFormulae),
+		"all installed leaves should appear as extra when desired is empty")
 	assert.Equal(t, len(casks), len(result.ExtraCasks),
 		"all installed casks should appear as extra when desired is empty")
-	t.Logf("Extra formulae: %d, extra casks: %d", len(result.ExtraFormulae), len(result.ExtraCasks))
+	t.Logf("Extra formulae (leaves): %d, extra casks: %d", len(result.ExtraFormulae), len(result.ExtraCasks))
 }
 
 func TestIntegration_Cleaner_DiffFromLists_SubsetDesired(t *testing.T) {
-	// Given: brew is installed with multiple packages
+	// Given: brew is installed with multiple top-level packages
 	require.True(t, brew.IsInstalled(), "brew must be installed")
-	formulae, _, err := brew.GetInstalledPackages()
+	leaves, err := brew.GetInstalledLeaves()
 	require.NoError(t, err)
-	if len(formulae) < 2 {
-		t.Skip("need at least 2 installed formulae for subset test")
+	if len(leaves) < 2 {
+		t.Skip("need at least 2 installed leaves for subset test")
 	}
 
-	// When: desired is exactly one installed formula
+	// When: desired is exactly one installed leaf formula
 	var oneFormula string
-	for name := range formulae {
+	for name := range leaves {
 		oneFormula = name
 		break
 	}
 	result, err := cleaner.DiffFromLists([]string{oneFormula}, nil, nil, nil)
 
-	// Then: all other installed formulae appear as extras
+	// Then: all other installed leaves appear as extras
 	require.NoError(t, err)
 	assert.NotContains(t, result.ExtraFormulae, oneFormula, "desired package should not appear as extra")
-	assert.Equal(t, len(formulae)-1, len(result.ExtraFormulae),
-		"all formulae except the desired one should be extra")
+	assert.Equal(t, len(leaves)-1, len(result.ExtraFormulae),
+		"all leaves except the desired one should be extra")
 }
 
 func TestIntegration_Cleaner_DiffFromSnapshot_CurrentState(t *testing.T) {
-	// Given: brew is installed; we build a snapshot from current installed state
+	// Given: brew is installed; we build a snapshot from current installed state (leaves)
 	require.True(t, brew.IsInstalled(), "brew must be installed")
-	formulae, casks, err := brew.GetInstalledPackages()
+	leaves, err := brew.GetInstalledLeaves()
+	require.NoError(t, err)
+	_, casks, err := brew.GetInstalledPackages()
 	require.NoError(t, err)
 
-	installedFormulae := make([]string, 0, len(formulae))
-	for name := range formulae {
-		installedFormulae = append(installedFormulae, name)
+	installedLeaves := make([]string, 0, len(leaves))
+	for name := range leaves {
+		installedLeaves = append(installedLeaves, name)
 	}
 	installedCasks := make([]string, 0, len(casks))
 	for name := range casks {
@@ -95,17 +101,17 @@ func TestIntegration_Cleaner_DiffFromSnapshot_CurrentState(t *testing.T) {
 
 	snap := &snapshot.Snapshot{
 		Packages: snapshot.PackageSnapshot{
-			Formulae: installedFormulae,
+			Formulae: installedLeaves,
 			Casks:    installedCasks,
 		},
 	}
 
-	// When: we diff against a snapshot that matches current state
+	// When: we diff against a snapshot that matches current leaves
 	result, err := cleaner.DiffFromSnapshot(snap)
 
 	// Then: no extras
 	require.NoError(t, err)
-	assert.Empty(t, result.ExtraFormulae, "no extra formulae when snapshot matches installed")
+	assert.Empty(t, result.ExtraFormulae, "no extra formulae when snapshot matches installed leaves")
 	assert.Empty(t, result.ExtraCasks, "no extra casks when snapshot matches installed")
 }
 

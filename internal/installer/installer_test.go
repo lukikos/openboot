@@ -679,6 +679,79 @@ func TestStepPostInstall_SharedContext(t *testing.T) {
 	assert.Equal(t, "hello\n", string(content), "variable set on one line should be available on the next")
 }
 
+func TestReconcileBrewWithSystem_RemovesUninstalledPackages(t *testing.T) {
+	state := newInstallState()
+	state.InstalledFormulae["git"] = true
+	state.InstalledFormulae["tree"] = true
+	state.InstalledFormulae["curl"] = true
+	state.InstalledCasks["firefox"] = true
+	state.InstalledCasks["slack"] = true
+
+	// Simulate system where tree and slack were manually uninstalled
+	actualFormulae := map[string]bool{"git": true, "curl": true}
+	actualCasks := map[string]bool{"firefox": true}
+
+	removed := state.reconcileBrewWithSystem(actualFormulae, actualCasks)
+
+	assert.Equal(t, 2, removed)
+	assert.True(t, state.isFormulaInstalled("git"))
+	assert.True(t, state.isFormulaInstalled("curl"))
+	assert.False(t, state.isFormulaInstalled("tree"), "tree was uninstalled and should be removed from state")
+	assert.True(t, state.isCaskInstalled("firefox"))
+	assert.False(t, state.isCaskInstalled("slack"), "slack was uninstalled and should be removed from state")
+}
+
+func TestReconcileBrewWithSystem_NoChangesWhenAllInstalled(t *testing.T) {
+	state := newInstallState()
+	state.InstalledFormulae["git"] = true
+	state.InstalledCasks["firefox"] = true
+
+	actualFormulae := map[string]bool{"git": true, "curl": true}
+	actualCasks := map[string]bool{"firefox": true, "slack": true}
+
+	removed := state.reconcileBrewWithSystem(actualFormulae, actualCasks)
+
+	assert.Equal(t, 0, removed)
+	assert.True(t, state.isFormulaInstalled("git"))
+	assert.True(t, state.isCaskInstalled("firefox"))
+}
+
+func TestReconcileBrewWithSystem_EmptyState(t *testing.T) {
+	state := newInstallState()
+
+	actualFormulae := map[string]bool{"git": true}
+	actualCasks := map[string]bool{"firefox": true}
+
+	removed := state.reconcileBrewWithSystem(actualFormulae, actualCasks)
+	assert.Equal(t, 0, removed)
+}
+
+func TestReconcileNpmWithSystem_RemovesUninstalledPackages(t *testing.T) {
+	state := newInstallState()
+	state.InstalledNpm["typescript"] = true
+	state.InstalledNpm["eslint"] = true
+	state.InstalledNpm["prettier"] = true
+
+	// Simulate system where eslint was manually uninstalled
+	actualNpm := map[string]bool{"typescript": true, "prettier": true}
+
+	removed := state.reconcileNpmWithSystem(actualNpm)
+
+	assert.Equal(t, 1, removed)
+	assert.True(t, state.isNpmInstalled("typescript"))
+	assert.False(t, state.isNpmInstalled("eslint"), "eslint was uninstalled and should be removed from state")
+	assert.True(t, state.isNpmInstalled("prettier"))
+}
+
+func TestReconcileNpmWithSystem_EmptyState(t *testing.T) {
+	state := newInstallState()
+
+	actualNpm := map[string]bool{"typescript": true}
+
+	removed := state.reconcileNpmWithSystem(actualNpm)
+	assert.Equal(t, 0, removed)
+}
+
 func TestRunCustomInstall_WithPostInstallScript(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)

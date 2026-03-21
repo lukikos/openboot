@@ -119,3 +119,36 @@ func (s *InstallState) isCaskInstalled(name string) bool {
 func (s *InstallState) isNpmInstalled(name string) bool {
 	return s.InstalledNpm[name]
 }
+
+// reconcileBrewWithSystem removes formulae and casks from the state that are
+// no longer actually installed on the system. This handles the case where a
+// user manually uninstalls a package (e.g. `brew uninstall tree`) — without
+// reconciliation the state file would still claim it is installed, preventing
+// openboot from reinstalling it.
+func (s *InstallState) reconcileBrewWithSystem(actualFormulae, actualCasks map[string]bool) (removed int) {
+	for name := range s.InstalledFormulae {
+		if !actualFormulae[name] {
+			delete(s.InstalledFormulae, name)
+			removed++
+		}
+	}
+	for name := range s.InstalledCasks {
+		if !actualCasks[name] {
+			delete(s.InstalledCasks, name)
+			removed++
+		}
+	}
+	return removed
+}
+
+// reconcileNpmWithSystem removes npm packages from the state that are no
+// longer actually installed on the system.
+func (s *InstallState) reconcileNpmWithSystem(actualNpm map[string]bool) (removed int) {
+	for name := range s.InstalledNpm {
+		if !actualNpm[name] {
+			delete(s.InstalledNpm, name)
+			removed++
+		}
+	}
+	return removed
+}

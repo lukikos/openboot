@@ -437,6 +437,18 @@ func stepInstallPackages(cfg *config.Config) error {
 	var newCask []string
 
 	if !cfg.DryRun {
+		actualFormulae, actualCasks, checkErr := brew.GetInstalledPackages()
+		if checkErr != nil {
+			ui.Warn(fmt.Sprintf("Failed to check installed packages: %v", checkErr))
+		} else {
+			removed := state.reconcileBrewWithSystem(actualFormulae, actualCasks)
+			if removed > 0 {
+				if err := state.save(); err != nil {
+					ui.Warn(fmt.Sprintf("Failed to update install state: %v", err))
+				}
+			}
+		}
+
 		for _, pkg := range cliPkgs {
 			if !state.isFormulaInstalled(pkg) {
 				newCli = append(newCli, pkg)
@@ -509,6 +521,18 @@ func stepInstallNpm(cfg *config.Config) error {
 
 	var newNpm []string
 	if !cfg.DryRun {
+		actualNpm, npmCheckErr := npm.GetInstalledPackages()
+		if npmCheckErr != nil {
+			ui.Warn(fmt.Sprintf("Failed to check installed npm packages: %v", npmCheckErr))
+		} else {
+			removed := state.reconcileNpmWithSystem(actualNpm)
+			if removed > 0 {
+				if err := state.save(); err != nil {
+					ui.Warn(fmt.Sprintf("Failed to update install state: %v", err))
+				}
+			}
+		}
+
 		for _, pkg := range npmPkgs {
 			if !state.isNpmInstalled(pkg) {
 				newNpm = append(newNpm, pkg)
@@ -619,9 +643,6 @@ func stepDotfiles(cfg *config.Config) error {
 		dotfilesURL = dotfiles.GetDotfilesURL()
 		if dotfilesURL == "" {
 			dotfilesURL = cfg.DotfilesURL
-		}
-		if dotfilesURL == "" && cfg.Dotfiles == "clone" {
-			return fmt.Errorf("dotfiles clone requested but no repository URL provided (set OPENBOOT_DOTFILES or use --dotfiles-url)")
 		}
 	}
 

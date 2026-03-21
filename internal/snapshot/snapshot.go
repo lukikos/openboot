@@ -31,10 +31,11 @@ type DotfilesSnapshot struct {
 }
 
 type PackageSnapshot struct {
-	Formulae []string `json:"formulae"`
-	Casks    []string `json:"casks"`
-	Taps     []string `json:"taps"`
-	Npm      []string `json:"npm"`
+	Formulae     []string          `json:"formulae"`
+	Casks        []string          `json:"casks"`
+	Taps         []string          `json:"taps"`
+	Npm          []string          `json:"npm"`
+	Descriptions map[string]string `json:"-"` // populated during unmarshal, not serialised
 }
 
 // UnmarshalJSON accepts three formats:
@@ -42,7 +43,7 @@ type PackageSnapshot struct {
 //   - Typed object array: [{"name":"git","type":"formula"},{"name":"docker","type":"cask"}]
 //   - Flat string array:  ["git","curl"] (all treated as formulae)
 func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
-	// Try structured object first.
+	// Try structured object first (plain string arrays).
 	type alias PackageSnapshot
 	var obj alias
 	if err := json.Unmarshal(data, &obj); err == nil {
@@ -50,12 +51,54 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	// Try typed object array: [{"name":"x","type":"formula|cask|tap|npm"}]
+	// Try structured object with entry objects: {"formulae":[{"name":"x","desc":"y"}],...}
+	var richObj struct {
+		Formulae []struct {
+			Name string `json:"name"`
+			Desc string `json:"desc"`
+		} `json:"formulae"`
+		Casks []struct {
+			Name string `json:"name"`
+			Desc string `json:"desc"`
+		} `json:"casks"`
+		Taps []string `json:"taps"`
+		Npm  []struct {
+			Name string `json:"name"`
+			Desc string `json:"desc"`
+		} `json:"npm"`
+	}
+	if err := json.Unmarshal(data, &richObj); err == nil && len(richObj.Formulae) > 0 {
+		ps.Descriptions = make(map[string]string)
+		for _, p := range richObj.Formulae {
+			ps.Formulae = append(ps.Formulae, p.Name)
+			if p.Desc != "" {
+				ps.Descriptions[p.Name] = p.Desc
+			}
+		}
+		for _, p := range richObj.Casks {
+			ps.Casks = append(ps.Casks, p.Name)
+			if p.Desc != "" {
+				ps.Descriptions[p.Name] = p.Desc
+			}
+		}
+		ps.Taps = richObj.Taps
+		for _, p := range richObj.Npm {
+			ps.Npm = append(ps.Npm, p.Name)
+			if p.Desc != "" {
+				ps.Descriptions[p.Name] = p.Desc
+			}
+		}
+		return nil
+	}
+
+	// Try typed object array: [{"name":"x","type":"formula|cask|tap|npm","desc":"..."}]
 	var typed []struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
+		Desc string `json:"desc"`
 	}
 	if err := json.Unmarshal(data, &typed); err == nil && len(typed) > 0 && typed[0].Name != "" {
+		ps.Descriptions = make(map[string]string)
 		for _, p := range typed {
 			switch p.Type {
 			case "cask":
@@ -66,6 +109,9 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
 				ps.Npm = append(ps.Npm, p.Name)
 			default:
 				ps.Formulae = append(ps.Formulae, p.Name)
+			}
+			if p.Desc != "" {
+				ps.Descriptions[p.Name] = p.Desc
 			}
 		}
 		return nil

@@ -254,6 +254,11 @@ func TestExecute_WithFakeBrew_Failure(t *testing.T) {
 
 func TestDiffFromLists_ExtraPackages(t *testing.T) {
 	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"leaves\" ]; then\n"+
+		"  echo git\n"+
+		"  echo wget\n"+
+		"  exit 0\n"+
+		"fi\n"+
 		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
 		"  echo git\n"+
 		"  echo wget\n"+
@@ -276,6 +281,10 @@ func TestDiffFromLists_ExtraPackages(t *testing.T) {
 
 func TestDiffFromLists_NoExtras(t *testing.T) {
 	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"leaves\" ]; then\n"+
+		"  echo git\n"+
+		"  exit 0\n"+
+		"fi\n"+
 		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
 		"  echo git\n"+
 		"  exit 0\n"+
@@ -293,6 +302,9 @@ func TestDiffFromLists_NoExtras(t *testing.T) {
 
 func TestDiffFromLists_WithExtraTaps(t *testing.T) {
 	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"leaves\" ]; then\n"+
+		"  exit 0\n"+
+		"fi\n"+
 		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
 		"  exit 0\n"+
 		"fi\n"+
@@ -314,6 +326,9 @@ func TestDiffFromLists_WithExtraTaps(t *testing.T) {
 
 func TestDiffFromLists_TapsPathSkippedWhenEmpty(t *testing.T) {
 	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"leaves\" ]; then\n"+
+		"  exit 0\n"+
+		"fi\n"+
 		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
 		"  exit 0\n"+
 		"fi\n"+
@@ -339,6 +354,11 @@ func TestCleanResult_TotalExtra_WithTaps(t *testing.T) {
 
 func TestDiffFromSnapshot_ExtraPackages(t *testing.T) {
 	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"leaves\" ]; then\n"+
+		"  echo git\n"+
+		"  echo ripgrep\n"+
+		"  exit 0\n"+
+		"fi\n"+
 		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
 		"  echo git\n"+
 		"  echo ripgrep\n"+

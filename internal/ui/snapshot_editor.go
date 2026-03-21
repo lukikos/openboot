@@ -80,6 +80,13 @@ func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
 		}
 	}
 
+	// Overlay descriptions from the snapshot itself (e.g. imported files with desc fields).
+	for name, desc := range snap.Packages.Descriptions {
+		if desc != "" {
+			descMap[name] = desc
+		}
+	}
+
 	tabs := make([]editorTab, 5)
 
 	formulaeItems := make([]editorItem, len(snap.Packages.Formulae))

@@ -77,7 +77,7 @@ func checkDependencies(cfg *config.Config) error {
 		if !cfg.PackagesOnly {
 			hasIssues = true
 			ui.Warn("Git user information is not configured")
-			ui.Info("You'll be prompted to configure it during installation")
+			ui.Info("You can set it up via dotfiles or manually after installation")
 			fmt.Println()
 		}
 	}

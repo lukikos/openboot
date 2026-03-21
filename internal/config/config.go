@@ -153,21 +153,16 @@ func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
 	if f, err := json.Marshal(formulae); err == nil {
 		converted["packages"] = f
 	}
-	if len(casks) > 0 {
-		if c, err := json.Marshal(casks); err == nil {
-			converted["casks"] = c
+	marshalIfNonEmpty := func(key string, items []string) {
+		if len(items) > 0 {
+			if data, err := json.Marshal(items); err == nil {
+				converted[key] = data
+			}
 		}
 	}
-	if len(taps) > 0 {
-		if t, err := json.Marshal(taps); err == nil {
-			converted["taps"] = t
-		}
-	}
-	if len(npm) > 0 {
-		if n, err := json.Marshal(npm); err == nil {
-			converted["npm"] = n
-		}
-	}
+	marshalIfNonEmpty("casks", casks)
+	marshalIfNonEmpty("taps", taps)
+	marshalIfNonEmpty("npm", npm)
 
 	normalised, err := json.Marshal(converted)
 	if err != nil {
@@ -203,36 +198,108 @@ func backfillMacOSPrefsFromSnapshot(rc *RemoteConfig, data []byte) {
 	}
 }
 
+const maxPackageNameLen = 200
+
 var (
 	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
 	tapNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
+
+	// allowedDotfilesHosts are the only git hosting providers accepted for
+	// dotfiles repository URLs, matching the server-side validation.
+	allowedDotfilesHosts = []string{
+		"github.com",
+		"gitlab.com",
+		"bitbucket.org",
+		"codeberg.org",
+	}
+
+	// dotfilesPathRe validates the path component: one or more segments of
+	// alphanumeric, dash, underscore, or dot characters separated by slashes.
+	dotfilesPathRe = regexp.MustCompile(`^/[a-zA-Z0-9._-]+(/[a-zA-Z0-9._-]+)*$`)
 )
+
+// ValidateDotfilesURL checks that a dotfiles repo URL conforms to the
+// server-side rules: HTTPS only, restricted hosts, max 500 chars, no path
+// traversal, and a valid path format.
+func ValidateDotfilesURL(rawURL string) error {
+	if rawURL == "" {
+		return nil
+	}
+
+	if len(rawURL) > 500 {
+		return fmt.Errorf("dotfiles URL too long (%d chars, max 500)", len(rawURL))
+	}
+
+	if !strings.HasPrefix(rawURL, "https://") {
+		return fmt.Errorf("dotfiles URL must use https:// (got %q); git@ URLs are not allowed", rawURL)
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("dotfiles URL is not a valid URL: %w", err)
+	}
+
+	hostAllowed := false
+	for _, h := range allowedDotfilesHosts {
+		if parsed.Hostname() == h {
+			hostAllowed = true
+			break
+		}
+	}
+	if !hostAllowed {
+		return fmt.Errorf("dotfiles URL host %q is not allowed; accepted hosts: %s",
+			parsed.Hostname(), strings.Join(allowedDotfilesHosts, ", "))
+	}
+
+	path := parsed.Path
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("dotfiles URL path must not contain '..'")
+	}
+	if strings.Contains(path, "//") {
+		return fmt.Errorf("dotfiles URL path must not contain '//'")
+	}
+	if !dotfilesPathRe.MatchString(path) {
+		return fmt.Errorf("dotfiles URL has an invalid path %q; expected format: https://<host>/<owner>/<repo>", path)
+	}
+
+	return nil
+}
 
 func (rc *RemoteConfig) Validate() error {
 	for _, p := range rc.Packages {
+		if len(p) > maxPackageNameLen {
+			return fmt.Errorf("package name too long (%d chars, max %d): %q", len(p), maxPackageNameLen, p)
+		}
 		if !pkgNameRe.MatchString(p) {
 			return fmt.Errorf("invalid package name: %q", p)
 		}
 	}
 	for _, c := range rc.Casks {
+		if len(c) > maxPackageNameLen {
+			return fmt.Errorf("cask name too long (%d chars, max %d): %q", len(c), maxPackageNameLen, c)
+		}
 		if !pkgNameRe.MatchString(c) {
 			return fmt.Errorf("invalid cask name: %q", c)
 		}
 	}
 	for _, n := range rc.Npm {
+		if len(n) > maxPackageNameLen {
+			return fmt.Errorf("npm package name too long (%d chars, max %d): %q", len(n), maxPackageNameLen, n)
+		}
 		if !pkgNameRe.MatchString(n) {
 			return fmt.Errorf("invalid npm package name: %q", n)
 		}
 	}
 	for _, t := range rc.Taps {
+		if len(t) > maxPackageNameLen {
+			return fmt.Errorf("tap name too long (%d chars, max %d): %q", len(t), maxPackageNameLen, t)
+		}
 		if !tapNameRe.MatchString(t) {
 			return fmt.Errorf("invalid tap name: %q (expected format: owner/repo)", t)
 		}
 	}
-	if rc.DotfilesRepo != "" {
-		if !strings.HasPrefix(rc.DotfilesRepo, "https://") && !strings.HasPrefix(rc.DotfilesRepo, "git@") {
-			return fmt.Errorf("invalid dotfiles_repo: %q (only https:// or git@ URLs allowed)", rc.DotfilesRepo)
-		}
+	if err := ValidateDotfilesURL(rc.DotfilesRepo); err != nil {
+		return fmt.Errorf("invalid dotfiles_repo: %w", err)
 	}
 	validPrefTypes := map[string]bool{"": true, "string": true, "int": true, "bool": true, "float": true}
 	for _, mp := range rc.MacOSPrefs {
@@ -396,10 +463,10 @@ func loadSnapshotAsRemoteConfig(data []byte) (*RemoteConfig, error) {
 	}
 
 	rc := &RemoteConfig{
-		Packages: snap.Packages.Formulae,
-		Casks:    snap.Packages.Casks,
-		Taps:     snap.Packages.Taps,
-		Npm:      snap.Packages.Npm,
+		Packages:   snap.Packages.Formulae,
+		Casks:      snap.Packages.Casks,
+		Taps:       snap.Packages.Taps,
+		Npm:        snap.Packages.Npm,
 		MacOSPrefs: snap.MacOSPrefs,
 	}
 	if snap.Shell.OhMyZsh {

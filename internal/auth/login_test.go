@@ -729,9 +729,9 @@ func TestLoginInteractive_ExpiresAtParsing(t *testing.T) {
 }
 
 
-func TestPollOnce_UnknownStatus(t *testing.T) {
+func TestPollOnce_Processing(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := cliPollResponse{Status: "unknown_status"}
+		resp := cliPollResponse{Status: "processing"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -741,6 +741,37 @@ func TestPollOnce_UnknownStatus(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, done)
 	assert.Nil(t, result)
+}
+
+func TestPollOnce_Used(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := cliPollResponse{Status: "used"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	result, done, err := pollOnce(server.URL)
+	assert.Error(t, err)
+	assert.False(t, done)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "already been used")
+}
+
+func TestPollOnce_UnknownStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := cliPollResponse{Status: "unknown_status"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	result, done, err := pollOnce(server.URL)
+	assert.Error(t, err)
+	assert.False(t, done)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "unexpected auth status")
+	assert.Contains(t, err.Error(), "unknown_status")
 }
 
 func TestLoginInteractive_EmptyUsername(t *testing.T) {

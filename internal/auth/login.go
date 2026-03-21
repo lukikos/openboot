@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
@@ -106,7 +107,7 @@ func startAuthSession(apiBase string) (codeID, code string, err error) {
 		return "", "", fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := httputil.Do(httpClient, req)
 	if err != nil {
 		return "", "", fmt.Errorf("start auth session: %w", err)
 	}
@@ -168,13 +169,19 @@ func pollOnce(pollURL string) (*cliPollResponse, bool, error) {
 		return nil, false, nil
 	}
 
-	if result.Status == "approved" {
+	switch result.Status {
+	case "approved":
 		return &result, true, nil
+	case "pending", "processing":
+		// Still waiting — keep polling
+		return nil, false, nil
+	case "used":
+		return nil, false, fmt.Errorf("this login code has already been used; please run 'openboot login' again")
+	case "expired":
+		return nil, false, fmt.Errorf("authorization code expired; please run 'openboot login' again")
+	default:
+		return nil, false, fmt.Errorf("unexpected auth status %q; please try again or run 'openboot login'", result.Status)
 	}
-	if result.Status == "expired" {
-		return nil, false, fmt.Errorf("authorization code expired or already used")
-	}
-	return nil, false, nil
 }
 
 var openBrowserFunc = func(url string) error {

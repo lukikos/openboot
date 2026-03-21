@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -304,7 +305,7 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibili
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return "", fmt.Errorf("upload snapshot: %w", err)
 	}
@@ -577,7 +578,11 @@ func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
 	if strings.HasPrefix(importPath, "https://") {
 		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
 		client := &http.Client{Timeout: 30 * time.Second}
-		resp, err := client.Get(importPath)
+		req, err := http.NewRequest("GET", importPath, nil)
+		if err != nil {
+			return nil, fmt.Errorf("download snapshot request: %w", err)
+		}
+		resp, err := httputil.Do(client, req)
 		if err != nil {
 			return nil, fmt.Errorf("download snapshot: %w", err)
 		}
@@ -590,7 +595,7 @@ func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read snapshot response: %w", err)
 		}
-		if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+		if err := os.WriteFile(tmpFile, data, 0600); err != nil {
 			return nil, fmt.Errorf("save snapshot: %w", err)
 		}
 		defer os.Remove(tmpFile)
@@ -713,8 +718,11 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 	}
 
 	if edited.Dotfiles.RepoURL != "" {
-		cfg.SnapshotDotfiles = edited.Dotfiles.RepoURL
-		cfg.DotfilesURL = edited.Dotfiles.RepoURL
+		if err := config.ValidateDotfilesURL(edited.Dotfiles.RepoURL); err == nil {
+			cfg.SnapshotDotfiles = edited.Dotfiles.RepoURL
+			cfg.DotfilesURL = edited.Dotfiles.RepoURL
+		}
+		// Invalid URLs are silently skipped — validation at push time will catch them.
 	}
 
 	cfg.SnapshotMacOS = make([]config.RemoteMacOSPref, len(edited.MacOSPrefs))

@@ -3,15 +3,18 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
@@ -133,11 +136,11 @@ func pushConfig(data []byte, slug, token, username, apiBase string) error {
 		"packages":    packages,
 		"visibility":  visibility,
 	}
-	if len(rc.Taps) > 0 {
-		reqBody["taps"] = rc.Taps
-	}
 	if rc.DotfilesRepo != "" {
 		reqBody["dotfiles_repo"] = rc.DotfilesRepo
+	}
+	if len(rc.PostInstall) > 0 {
+		reqBody["custom_script"] = strings.Join(rc.PostInstall, "\n")
 	}
 	if rc.Preset != "" {
 		reqBody["base_preset"] = rc.Preset
@@ -150,7 +153,7 @@ func pushConfig(data []byte, slug, token, username, apiBase string) error {
 
 	var uploadURL string
 	if slug != "" {
-		uploadURL = fmt.Sprintf("%s/api/configs/%s", apiBase, slug)
+		uploadURL = fmt.Sprintf("%s/api/configs/%s", apiBase, url.PathEscape(slug))
 	} else {
 		uploadURL = fmt.Sprintf("%s/api/configs", apiBase)
 	}
@@ -163,16 +166,17 @@ type apiPackage struct {
 }
 
 func remoteConfigToAPIPackages(rc *config.RemoteConfig) []apiPackage {
-	pkgs := make([]apiPackage, 0, len(rc.Packages)+len(rc.Casks)+len(rc.Npm))
-	for _, p := range rc.Packages {
-		pkgs = append(pkgs, apiPackage{Name: p, Type: "formula"})
+	totalCap := len(rc.Packages) + len(rc.Casks) + len(rc.Npm) + len(rc.Taps)
+	pkgs := make([]apiPackage, 0, totalCap)
+	appendTyped := func(items []string, typeName string) {
+		for _, item := range items {
+			pkgs = append(pkgs, apiPackage{Name: item, Type: typeName})
+		}
 	}
-	for _, c := range rc.Casks {
-		pkgs = append(pkgs, apiPackage{Name: c, Type: "cask"})
-	}
-	for _, n := range rc.Npm {
-		pkgs = append(pkgs, apiPackage{Name: n, Type: "npm"})
-	}
+	appendTyped(rc.Packages, "formula")
+	appendTyped(rc.Casks, "cask")
+	appendTyped(rc.Npm, "npm")
+	appendTyped(rc.Taps, "tap")
 	return pkgs
 }
 
@@ -190,7 +194,7 @@ func doUpload(url string, body []byte, token, username, slug string) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
@@ -201,6 +205,27 @@ func doUpload(url string, body []byte, token, username, slug string) error {
 		if readErr != nil {
 			return fmt.Errorf("upload failed (status %d): read response: %w", resp.StatusCode, readErr)
 		}
+
+		if resp.StatusCode == http.StatusConflict {
+			var errResp struct {
+				Message string `json:"message"`
+				Error   string `json:"error"`
+			}
+			if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil {
+				msg := errResp.Message
+				if msg == "" {
+					msg = errResp.Error
+				}
+				if msg != "" && strings.Contains(strings.ToLower(msg), "maximum") {
+					return errors.New("config limit reached (max 20): delete an existing config with 'openboot delete <slug>' first")
+				}
+				if msg != "" {
+					return errors.New(msg)
+				}
+			}
+			return fmt.Errorf("conflict: %s", string(respBody))
+		}
+
 		return fmt.Errorf("upload failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
 

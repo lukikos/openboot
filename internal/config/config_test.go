@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -477,6 +478,53 @@ func TestUnmarshalRemoteConfigFlexible_InvalidJSON(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestRemoteConfig_Validate_NameTooLong(t *testing.T) {
+	longName := strings.Repeat("a", 201)
+
+	tests := []struct {
+		name    string
+		config  RemoteConfig
+		wantErr string
+	}{
+		{
+			name:    "package name too long",
+			config:  RemoteConfig{Packages: []string{longName}},
+			wantErr: "package name too long (201 chars, max 200)",
+		},
+		{
+			name:    "cask name too long",
+			config:  RemoteConfig{Casks: []string{longName}},
+			wantErr: "cask name too long (201 chars, max 200)",
+		},
+		{
+			name:    "npm name too long",
+			config:  RemoteConfig{Npm: []string{longName}},
+			wantErr: "npm package name too long (201 chars, max 200)",
+		},
+		{
+			name:    "tap name too long",
+			config:  RemoteConfig{Taps: []string{longName}},
+			wantErr: "tap name too long (201 chars, max 200)",
+		},
+		{
+			name:   "package name at limit is valid",
+			config: RemoteConfig{Packages: []string{strings.Repeat("a", 200)}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestFetchRemoteConfig_ExplicitSlugNoFallback(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/default/config", r.URL.Path)
@@ -494,4 +542,84 @@ func TestFetchRemoteConfig_ExplicitSlugNoFallback(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "config not found: testuser/default")
+}
+
+func TestValidateDotfilesURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantErr string
+	}{
+		{
+			name: "empty is valid",
+			url:  "",
+		},
+		{
+			name: "valid github URL",
+			url:  "https://github.com/user/dotfiles",
+		},
+		{
+			name: "valid gitlab URL",
+			url:  "https://gitlab.com/user/dotfiles",
+		},
+		{
+			name: "valid bitbucket URL",
+			url:  "https://bitbucket.org/user/dotfiles",
+		},
+		{
+			name: "valid codeberg URL",
+			url:  "https://codeberg.org/user/dotfiles",
+		},
+		{
+			name: "valid deep path",
+			url:  "https://github.com/org/sub/dotfiles",
+		},
+		{
+			name:    "git@ rejected",
+			url:     "git@github.com:user/dotfiles.git",
+			wantErr: "must use https://",
+		},
+		{
+			name:    "http rejected",
+			url:     "http://github.com/user/dotfiles",
+			wantErr: "must use https://",
+		},
+		{
+			name:    "disallowed host",
+			url:     "https://example.com/user/dotfiles",
+			wantErr: "not allowed",
+		},
+		{
+			name:    "path traversal rejected",
+			url:     "https://github.com/user/../etc/passwd",
+			wantErr: "must not contain '..'",
+		},
+		{
+			name:    "double slash rejected",
+			url:     "https://github.com/user//dotfiles",
+			wantErr: "must not contain '//'",
+		},
+		{
+			name:    "empty path rejected",
+			url:     "https://github.com",
+			wantErr: "invalid path",
+		},
+		{
+			name:    "too long",
+			url:     "https://github.com/user/" + strings.Repeat("a", 500),
+			wantErr: "too long",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateDotfilesURL(tt.url)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

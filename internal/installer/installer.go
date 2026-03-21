@@ -604,7 +604,7 @@ func stepDotfiles(cfg *config.Config) error {
 				return err
 			}
 			if setup {
-				dotfilesURL, err = ui.Input("Dotfiles repository URL (https:// only — github.com, gitlab.com, bitbucket.org, codeberg.org)", "https://github.com/username/dotfiles")
+				dotfilesURL, err = ui.Input("Dotfiles repository URL (https:// only)", "https://github.com/username/dotfiles")
 				if err != nil {
 					return err
 				}

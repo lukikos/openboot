@@ -204,23 +204,14 @@ var (
 	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
 	tapNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
 
-	// allowedDotfilesHosts are the only git hosting providers accepted for
-	// dotfiles repository URLs, matching the server-side validation.
-	allowedDotfilesHosts = []string{
-		"github.com",
-		"gitlab.com",
-		"bitbucket.org",
-		"codeberg.org",
-	}
-
 	// dotfilesPathRe validates the path component: one or more segments of
 	// alphanumeric, dash, underscore, or dot characters separated by slashes.
 	dotfilesPathRe = regexp.MustCompile(`^/[a-zA-Z0-9._-]+(/[a-zA-Z0-9._-]+)*$`)
 )
 
-// ValidateDotfilesURL checks that a dotfiles repo URL conforms to the
-// server-side rules: HTTPS only, restricted hosts, max 500 chars, no path
-// traversal, and a valid path format.
+// ValidateDotfilesURL checks that a dotfiles repo URL uses HTTPS, has a
+// valid path, max 500 chars, and no path traversal. Any HTTPS host is
+// accepted (including self-hosted GitLab, Gitea, etc.).
 func ValidateDotfilesURL(rawURL string) error {
 	if rawURL == "" {
 		return nil
@@ -239,16 +230,8 @@ func ValidateDotfilesURL(rawURL string) error {
 		return fmt.Errorf("dotfiles URL is not a valid URL: %w", err)
 	}
 
-	hostAllowed := false
-	for _, h := range allowedDotfilesHosts {
-		if parsed.Hostname() == h {
-			hostAllowed = true
-			break
-		}
-	}
-	if !hostAllowed {
-		return fmt.Errorf("dotfiles URL host %q is not allowed; accepted hosts: %s",
-			parsed.Hostname(), strings.Join(allowedDotfilesHosts, ", "))
+	if parsed.Hostname() == "" {
+		return fmt.Errorf("dotfiles URL is missing a hostname")
 	}
 
 	path := parsed.Path

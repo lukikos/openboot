@@ -585,9 +585,8 @@ func TestValidateDotfilesURL(t *testing.T) {
 			wantErr: "must use https://",
 		},
 		{
-			name:    "disallowed host",
-			url:     "https://example.com/user/dotfiles",
-			wantErr: "not allowed",
+			name: "self-hosted gitlab accepted",
+			url:  "https://git.internal.example.com/user/dotfiles",
 		},
 		{
 			name:    "path traversal rejected",

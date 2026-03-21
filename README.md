@@ -32,8 +32,7 @@ npm install -g typescript eslint prettier
 Here's the alternative:
 
 ```bash
-brew install openbootdotdev/tap/openboot
-openboot
+curl -fsSL openboot.dev/install.sh | bash
 ```
 
 Pick what you need in a terminal UI. Takes minutes. Or snapshot your current Mac and share it—your whole team gets the same setup with one command.
@@ -49,15 +48,28 @@ OpenBoot is the first tool that handles **everything** — packages, dotfiles, s
 ## Quick Start
 
 ```bash
-brew install openbootdotdev/tap/openboot
-openboot
+curl -fsSL openboot.dev/install.sh | bash
 ```
 
+Works on a fresh Mac — installs Homebrew, Xcode CLI tools, and everything else automatically.
+
 <details>
-<summary>Alternative: one-line installer</summary>
+<summary>Want to inspect the script first?</summary>
 
 ```bash
-curl -fsSL openboot.dev/install.sh | bash
+curl -fsSL openboot.dev/install.sh -o install.sh
+cat install.sh
+bash install.sh
+```
+
+</details>
+
+<details>
+<summary>Already have Homebrew?</summary>
+
+```bash
+brew install openbootdotdev/tap/openboot
+openboot
 ```
 
 </details>
@@ -132,25 +144,15 @@ openboot clean --dry-run              # See what would be removed
 New hire runs one command, gets the same environment as everyone else. [Guide →](https://openboot.dev/docs/teams)
 
 ```bash
-brew install openbootdotdev/tap/openboot
-openboot --user yourteam/frontend
+curl -fsSL openboot.dev/yourteam/frontend | bash
 ```
 
-Make your config on the [dashboard](https://openboot.dev/dashboard), put this in your onboarding docs. When your stack changes, update the config. The install command stays the same.
+Make your config on the [dashboard](https://openboot.dev/dashboard), put the one-liner in your onboarding docs. When your stack changes, update the config — the install command stays the same.
 
 ## Advanced Usage
 
 <details>
 <summary><strong>CI / Automation</strong></summary>
-
-```bash
-brew install openbootdotdev/tap/openboot
-OPENBOOT_GIT_NAME="Your Name" \
-OPENBOOT_GIT_EMAIL="you@example.com" \
-openboot --preset developer --silent
-```
-
-Or with the one-line installer:
 
 ```bash
 OPENBOOT_GIT_NAME="Your Name" \

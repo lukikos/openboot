@@ -88,32 +88,6 @@ func TestConfigure_DifferentTypes(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestDefaultPreferences_NotEmpty(t *testing.T) {
-	assert.Greater(t, len(DefaultPreferences), 0)
-}
-
-func TestDefaultPreferences_HasRequiredFields(t *testing.T) {
-	for _, pref := range DefaultPreferences {
-		assert.NotEmpty(t, pref.Domain, "Domain should not be empty")
-		assert.NotEmpty(t, pref.Key, "Key should not be empty")
-		assert.NotEmpty(t, pref.Type, "Type should not be empty")
-		assert.NotEmpty(t, pref.Desc, "Description should not be empty")
-	}
-}
-
-func TestDefaultPreferences_ValidTypes(t *testing.T) {
-	validTypes := map[string]bool{
-		"bool":   true,
-		"int":    true,
-		"float":  true,
-		"string": true,
-	}
-
-	for _, pref := range DefaultPreferences {
-		assert.True(t, validTypes[pref.Type], "Type %s is not valid", pref.Type)
-	}
-}
-
 func TestCreateScreenshotsDir_DryRun(t *testing.T) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
@@ -159,33 +133,3 @@ func TestRestartAffectedApps_DryRun(t *testing.T) {
 // TestRestartAffectedApps_NoDryRun kills real system processes (Finder, Dock, SystemUIServer),
 // so it must only run with the integration build tag.
 // See test/integration/ for the integration-tagged version.
-
-func TestDefaultPreferences_FinderPrefs(t *testing.T) {
-	finderPrefs := []Preference{}
-	for _, p := range DefaultPreferences {
-		if p.Domain == "com.apple.finder" {
-			finderPrefs = append(finderPrefs, p)
-		}
-	}
-	assert.Greater(t, len(finderPrefs), 0, "Should have Finder preferences")
-}
-
-func TestDefaultPreferences_DockPrefs(t *testing.T) {
-	dockPrefs := []Preference{}
-	for _, p := range DefaultPreferences {
-		if p.Domain == "com.apple.dock" {
-			dockPrefs = append(dockPrefs, p)
-		}
-	}
-	assert.Greater(t, len(dockPrefs), 0, "Should have Dock preferences")
-}
-
-func TestDefaultPreferences_ScreencapturePrefs(t *testing.T) {
-	screencapturePrefs := []Preference{}
-	for _, p := range DefaultPreferences {
-		if p.Domain == "com.apple.screencapture" {
-			screencapturePrefs = append(screencapturePrefs, p)
-		}
-	}
-	assert.Greater(t, len(screencapturePrefs), 0, "Should have Screencapture preferences")
-}

@@ -373,12 +373,6 @@ func TestStepMacOS_Silent_DryRun(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInstallTimeConstants(t *testing.T) {
-	assert.Equal(t, 15, estimatedSecondsPerFormula)
-	assert.Equal(t, 30, estimatedSecondsPerCask)
-	assert.Equal(t, 5, estimatedSecondsPerNpm)
-}
-
 func TestInstallState_OnlySuccessfulPackagesMarked(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)

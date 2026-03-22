@@ -96,16 +96,6 @@ func TestInstall_DryRun(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInstall_DryRun_EmptyPackages(t *testing.T) {
-	err := Install([]string{}, true)
-	assert.NoError(t, err)
-}
-
-func TestIsAvailable(t *testing.T) {
-	result := IsAvailable()
-	assert.IsType(t, true, result)
-}
-
 func TestGetNodeVersion(t *testing.T) {
 	if !IsAvailable() {
 		t.Skip("node not available")

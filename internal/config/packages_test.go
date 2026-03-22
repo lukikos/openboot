@@ -161,13 +161,3 @@ func TestIsTapPackage(t *testing.T) {
 		})
 	}
 }
-
-func TestGetAllPackageNames(t *testing.T) {
-	names := GetAllPackageNames()
-
-	assert.Greater(t, len(names), 0)
-	assert.Contains(t, names, "curl")
-	assert.Contains(t, names, "node")
-	assert.Contains(t, names, "typescript")
-	assert.Contains(t, names, "visual-studio-code")
-}

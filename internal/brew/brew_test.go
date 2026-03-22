@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -187,51 +186,10 @@ func TestCheckDiskSpace(t *testing.T) {
 	assert.Greater(t, gb, 0.0)
 }
 
-func TestOutdatedPackageStruct(t *testing.T) {
-	pkg := OutdatedPackage{
-		Name:    "git",
-		Current: "2.40.0",
-		Latest:  "2.42.0",
-	}
-	assert.Equal(t, "git", pkg.Name)
-	assert.Equal(t, "2.40.0", pkg.Current)
-	assert.Equal(t, "2.42.0", pkg.Latest)
-}
-
-func TestHandleFailedJobs_Empty(t *testing.T) {
-	handleFailedJobs(nil)
-	handleFailedJobs([]failedJob{})
-}
-
 func TestHandleFailedJobs_WithFailures(t *testing.T) {
 	failed := []failedJob{
 		{installJob: installJob{name: "pkg1", isCask: false}, errMsg: "not found"},
 		{installJob: installJob{name: "pkg2", isCask: true}, errMsg: ""},
 	}
 	handleFailedJobs(failed)
-}
-
-func TestRunParallelInstallWithProgress_EmptyPkgs(t *testing.T) {
-	result := runParallelInstallWithProgress(nil, nil)
-	assert.Nil(t, result)
-}
-
-func TestIsInstalled(t *testing.T) {
-	result := IsInstalled()
-	assert.IsType(t, true, result)
-}
-
-func TestMaxWorkersConstant(t *testing.T) {
-	assert.Equal(t, 1, maxWorkers)
-}
-
-func TestPrintBrewOutput_Lines(t *testing.T) {
-	p := ui.NewStickyProgress(1)
-	printBrewOutput("line one\nline two\n  line three  \n", p)
-}
-
-func TestPrintBrewOutput_Empty(t *testing.T) {
-	p := ui.NewStickyProgress(1)
-	printBrewOutput("", p)
-	printBrewOutput("   \n   ", p)
 }

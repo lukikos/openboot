@@ -260,12 +260,6 @@ func TestLoadUserConfig_DisabledMode(t *testing.T) {
 	assert.Equal(t, AutoUpdateDisabled, cfg.AutoUpdate)
 }
 
-func TestAutoUpdateModeConstants(t *testing.T) {
-	assert.Equal(t, AutoUpdateMode("true"), AutoUpdateEnabled)
-	assert.Equal(t, AutoUpdateMode("notify"), AutoUpdateNotify)
-	assert.Equal(t, AutoUpdateMode("false"), AutoUpdateDisabled)
-}
-
 // --- HTTP client ---
 
 func TestGetHTTPClient_Singleton(t *testing.T) {

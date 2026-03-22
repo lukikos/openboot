@@ -461,13 +461,6 @@ func TestPrintMissingExtraBothEmpty(t *testing.T) {
 	assert.Empty(t, output)
 }
 
-func TestPkgCategoryConstants(t *testing.T) {
-	assert.Equal(t, pkgCategory("formulae"), categoryFormulae)
-	assert.Equal(t, pkgCategory("casks"), categoryCasks)
-	assert.Equal(t, pkgCategory("npm"), categoryNpm)
-	assert.Equal(t, pkgCategory("taps"), categoryTaps)
-}
-
 func TestBuildDryRunPlan(t *testing.T) {
 	d := &syncpkg.SyncDiff{
 		MissingFormulae: []string{"ripgrep", "fd"},

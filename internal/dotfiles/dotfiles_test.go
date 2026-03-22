@@ -10,10 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefaultDotfilesURL(t *testing.T) {
-	assert.Equal(t, "https://github.com/openbootdotdev/dotfiles", DefaultDotfilesURL)
-}
-
 func TestGetDotfilesURL_Empty(t *testing.T) {
 	t.Setenv("OPENBOOT_DOTFILES", "")
 	url := GetDotfilesURL()

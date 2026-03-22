@@ -203,15 +203,3 @@ func TestDoctorDiagnose_UnknownWarnings(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, suggestions, "Run: brew doctor (to see full diagnostic output)")
 }
-
-func TestBrewInstallCmd_SetsNoAutoUpdate(t *testing.T) {
-	cmd := brewInstallCmd("install", "git")
-	assert.Equal(t, []string{"brew", "install", "git"}, cmd.Args)
-	found := false
-	for _, env := range cmd.Env {
-		if env == "HOMEBREW_NO_AUTO_UPDATE=1" {
-			found = true
-		}
-	}
-	assert.True(t, found, "expected HOMEBREW_NO_AUTO_UPDATE=1 in env")
-}

@@ -104,7 +104,8 @@ One-time setup — applies to ALL projects automatically.`,
 			rulePath := t.rulePath(home)
 
 			if fileExists(rulePath) {
-				ui.Muted(fmt.Sprintf("  %s — already configured", t.name))
+				ui.Success(fmt.Sprintf("%s — already configured", t.name))
+				ui.Muted(fmt.Sprintf("  Rule: %s", rulePath))
 				skipped++
 				continue
 			}
@@ -123,7 +124,8 @@ One-time setup — applies to ALL projects automatically.`,
 				continue
 			}
 
-			ui.Success(fmt.Sprintf("%s — configured (%s)", t.name, rulePath))
+			ui.Success(fmt.Sprintf("%s — configured", t.name))
+			ui.Muted(fmt.Sprintf("  Wrote rule: %s", rulePath))
 			configured++
 		}
 
@@ -133,10 +135,17 @@ One-time setup — applies to ALL projects automatically.`,
 			ui.Warn("No supported AI coding tools detected.")
 			ui.Muted("  Supported: Claude Code, OpenAI Codex")
 			ui.Muted("  Install one of these tools first, then run 'openboot setup-agent' again.")
-		} else if configured > 0 {
-			ui.Success(fmt.Sprintf("Done! Configured %d agent(s). They will now use openboot when dependencies are missing.", configured))
 		} else {
-			ui.Info(fmt.Sprintf("All %d detected agent(s) already configured.", skipped))
+			ui.Info("What this does:")
+			ui.Muted("  When your AI agent encounters a missing dependency (e.g. 'command not found'),")
+			ui.Muted("  it will use 'openboot init' to detect and install all missing deps at once")
+			ui.Muted("  instead of installing them one by one.")
+			fmt.Println()
+			if configured > 0 {
+				ui.Success(fmt.Sprintf("Configured %d agent(s).", configured))
+			} else {
+				ui.Success(fmt.Sprintf("All %d detected agent(s) already configured. No changes needed.", skipped))
+			}
 		}
 
 		fmt.Println()

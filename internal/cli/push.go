@@ -262,6 +262,7 @@ func promptPushDetails() (string, string, string, error) {
 	if err != nil {
 		return "", "", "", fmt.Errorf("get config name: %w", err)
 	}
+	name = strings.TrimSpace(name)
 	if name == "" {
 		name = "My Mac Setup"
 	}
@@ -271,6 +272,7 @@ func promptPushDetails() (string, string, string, error) {
 	if err != nil {
 		return "", "", "", fmt.Errorf("get description: %w", err)
 	}
+	desc = strings.TrimSpace(desc)
 
 	fmt.Fprintln(os.Stderr)
 	options := []string{

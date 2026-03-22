@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
+	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -223,21 +225,30 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 		return fmt.Errorf("no valid auth token found — please log in again")
 	}
 
-	configName, configDesc, visibility, err := promptConfigDetails()
+	updateSlug, err := promptUpdateOrCreate()
 	if err != nil {
 		return err
 	}
 
-	slug, err := postSnapshotToAPI(snap, configName, configDesc, visibility, stored.Token, apiBase)
+	configName, configDesc, visibility, err := promptPushDetails()
 	if err != nil {
 		return err
 	}
 
-	configURL := fmt.Sprintf("%s/%s/%s", apiBase, stored.Username, slug)
-	installURL := fmt.Sprintf("openboot -u %s/%s", stored.Username, slug)
+	resultSlug, err := postSnapshotToAPI(snap, configName, configDesc, visibility, stored.Token, apiBase, updateSlug)
+	if err != nil {
+		return err
+	}
+
+	configURL := fmt.Sprintf("%s/%s/%s", apiBase, stored.Username, resultSlug)
+	installURL := fmt.Sprintf("openboot -u %s/%s", stored.Username, resultSlug)
 
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config uploaded successfully!"))
+	if updateSlug != "" {
+		fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config updated successfully!"))
+	} else {
+		fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config uploaded successfully!"))
+	}
 	fmt.Fprintln(os.Stderr)
 	showUploadedConfigInfo(visibility, configURL, installURL)
 	fmt.Fprintln(os.Stderr)
@@ -245,51 +256,39 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 	return nil
 }
 
-func promptConfigDetails() (string, string, string, error) {
-	fmt.Fprintln(os.Stderr)
-	configName, err := ui.Input("Config name", "My Mac Setup")
-	if err != nil {
-		return "", "", "", fmt.Errorf("get config name: %w", err)
+func promptUpdateOrCreate() (string, error) {
+	source, err := syncpkg.LoadSource()
+	if err != nil || source == nil || source.Username == "" || source.Slug == "" {
+		return "", nil
 	}
-	configName = strings.TrimSpace(configName)
-	if configName == "" {
-		configName = "My Mac Setup"
-	}
+
+	label := fmt.Sprintf("@%s/%s", source.Username, source.Slug)
+	updateOption := fmt.Sprintf("Update existing config (%s)", label)
+	options := []string{updateOption, "Create new config"}
 
 	fmt.Fprintln(os.Stderr)
-	configDesc, err := ui.Input("Description (optional)", "")
+	choice, err := ui.SelectOption("Upload mode:", options)
 	if err != nil {
-		return "", "", "", fmt.Errorf("get config description: %w", err)
-	}
-	configDesc = strings.TrimSpace(configDesc)
-
-	fmt.Fprintln(os.Stderr)
-	visibilityOptions := []string{
-		"Public - Anyone can discover and use this config",
-		"Unlisted - Only people with the link can access",
-		"Private - Only you can see this config",
-	}
-	visibilityChoice, err := ui.SelectOption("Who can see this config?", visibilityOptions)
-	if err != nil {
-		return "", "", "", fmt.Errorf("select visibility: %w", err)
+		return "", fmt.Errorf("select upload mode: %w", err)
 	}
 
-	visibility := "unlisted"
-	if strings.HasPrefix(visibilityChoice, "Public") {
-		visibility = "public"
-	} else if strings.HasPrefix(visibilityChoice, "Private") {
-		visibility = "private"
+	if choice == updateOption {
+		return source.Slug, nil
 	}
-
-	return configName, configDesc, visibility, nil
+	return "", nil
 }
 
-func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibility, token, apiBase string) (string, error) {
+func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibility, token, apiBase, slug string) (string, error) {
+	method := "POST"
 	reqBody := map[string]interface{}{
 		"name":        configName,
 		"description": configDesc,
 		"snapshot":    snap,
 		"visibility":  visibility,
+	}
+	if slug != "" {
+		method = "PUT"
+		reqBody["config_slug"] = slug
 	}
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -297,11 +296,11 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibili
 	}
 
 	uploadURL := fmt.Sprintf("%s/api/configs/from-snapshot", apiBase)
-	req, err := http.NewRequest("POST", uploadURL, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequest(method, uploadURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return "", fmt.Errorf("create upload request: %w", err)
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -312,9 +311,28 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibili
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10)) // 64 KB for error responses
-		if err != nil {
-			return "", fmt.Errorf("upload failed (status %d): read response: %w", resp.StatusCode, err)
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+		if readErr != nil {
+			return "", fmt.Errorf("upload failed (status %d): read response: %w", resp.StatusCode, readErr)
+		}
+		if resp.StatusCode == http.StatusConflict {
+			var errResp struct {
+				Message string `json:"message"`
+				Error   string `json:"error"`
+			}
+			if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil {
+				msg := errResp.Message
+				if msg == "" {
+					msg = errResp.Error
+				}
+				if msg != "" && strings.Contains(strings.ToLower(msg), "maximum") {
+					return "", errors.New("config limit reached (max 20): delete an existing config with 'openboot delete <slug>' first")
+				}
+				if msg != "" {
+					return "", errors.New(msg)
+				}
+			}
+			return "", fmt.Errorf("conflict: %s", string(respBody))
 		}
 		return "", fmt.Errorf("upload failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
@@ -325,7 +343,11 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibili
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("parse upload response: %w", err)
 	}
-	return result.Slug, nil
+	resultSlug := result.Slug
+	if resultSlug == "" {
+		resultSlug = slug
+	}
+	return resultSlug, nil
 }
 
 func showUploadedConfigInfo(visibility, configURL, installURL string) {

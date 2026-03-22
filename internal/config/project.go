@@ -1,12 +1,16 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ErrConfigNotFound is returned when .openboot.yml does not exist in the directory.
+var ErrConfigNotFound = errors.New("project config not found")
 
 const ProjectConfigFileName = ".openboot.yml"
 
@@ -31,7 +35,7 @@ func LoadProjectConfig(dir string) (*ProjectConfig, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s not found in %s", ProjectConfigFileName, dir)
+			return nil, ErrConfigNotFound
 		}
 		return nil, fmt.Errorf("read %s: %w", ProjectConfigFileName, err)
 	}

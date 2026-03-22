@@ -212,7 +212,11 @@ func SelectOption(title string, options []string) (string, error) {
 }
 
 func Input(title, placeholder string) (string, error) {
-	var value string
+	return InputWithDefault(title, placeholder, "")
+}
+
+func InputWithDefault(title, placeholder, defaultValue string) (string, error) {
+	value := defaultValue
 
 	form := huh.NewForm(
 		huh.NewGroup(

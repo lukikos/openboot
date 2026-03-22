@@ -230,7 +230,12 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 		return err
 	}
 
-	configName, configDesc, visibility, err := promptPushDetails()
+	defaultName := ""
+	if updateSlug != "" {
+		defaultName = slugToTitle(updateSlug)
+	}
+
+	configName, configDesc, visibility, err := promptPushDetails(defaultName)
 	if err != nil {
 		return err
 	}
@@ -254,6 +259,17 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 	fmt.Fprintln(os.Stderr)
 
 	return nil
+}
+
+// slugToTitle converts a URL slug like "my-mac-setup" to "My Mac Setup".
+func slugToTitle(slug string) string {
+	words := strings.Split(slug, "-")
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 func promptUpdateOrCreate() (string, error) {

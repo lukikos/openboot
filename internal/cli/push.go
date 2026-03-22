@@ -89,7 +89,7 @@ func pushSnapshot(data []byte, slug, token, username, apiBase string) error {
 		return fmt.Errorf("parse snapshot: %w", err)
 	}
 
-	name, desc, visibility, err := promptPushDetails()
+	name, desc, visibility, err := promptPushDetails("")
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func pushConfig(data []byte, slug, token, username, apiBase string) error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
-	name, desc, visibility, err := promptPushDetails()
+	name, desc, visibility, err := promptPushDetails("")
 	if err != nil {
 		return err
 	}
@@ -256,9 +256,15 @@ func doUpload(url string, body []byte, token, username, slug string) error {
 	return nil
 }
 
-func promptPushDetails() (string, string, string, error) {
+func promptPushDetails(defaultName string) (string, string, string, error) {
 	fmt.Fprintln(os.Stderr)
-	name, err := ui.Input("Config name", "My Mac Setup")
+	var name string
+	var err error
+	if defaultName != "" {
+		name, err = ui.InputWithDefault("Config name", "My Mac Setup", defaultName)
+	} else {
+		name, err = ui.Input("Config name", "My Mac Setup")
+	}
 	if err != nil {
 		return "", "", "", fmt.Errorf("get config name: %w", err)
 	}

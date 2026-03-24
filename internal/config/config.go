@@ -11,17 +11,49 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/system"
 	"gopkg.in/yaml.v3"
 )
 
+var upgradeHintOnce sync.Once
+
+// checkUpgradeHint reads the X-OpenBoot-Upgrade header from server responses.
+// If the server says the CLI is too old, print a one-time hint to stderr.
+func checkUpgradeHint(resp *http.Response) {
+	if resp.Header.Get("X-OpenBoot-Upgrade") == "true" {
+		upgradeHintOnce.Do(func() {
+			minVer := resp.Header.Get("X-OpenBoot-Min-Version")
+			if minVer == "" {
+				minVer = "latest"
+			}
+			fmt.Fprintf(os.Stderr, "Notice: your CLI is older than the server expects (min %s). Run: brew upgrade openboot\n", minVer)
+		})
+	}
+}
+
 // isAllowedAPIURL delegates to the shared implementation in system package.
 var isAllowedAPIURL = system.IsAllowedAPIURL
 
+// clientVersion is set by the CLI at startup via SetClientVersion.
+var clientVersion = "dev"
+
+// SetClientVersion sets the version string sent in X-OpenBoot-Version headers.
+func SetClientVersion(v string) { clientVersion = v }
+
+// versionTransport wraps http.DefaultTransport to inject the version header.
+type versionTransport struct{ base http.RoundTripper }
+
+func (t *versionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("X-OpenBoot-Version", clientVersion)
+	return t.base.RoundTrip(req)
+}
+
 var remoteHTTPClient = &http.Client{
-	Timeout: 15 * time.Second,
+	Timeout:   15 * time.Second,
+	Transport: &versionTransport{base: http.DefaultTransport},
 }
 
 //go:embed data/presets.yaml
@@ -425,6 +457,7 @@ func fetchConfigBySlug(apiBase, username, slug, token string) (*http.Response, e
 
 func parseConfigResponse(resp *http.Response, username, slug, token string) (*RemoteConfig, error) {
 	defer resp.Body.Close()
+	checkUpgradeHint(resp)
 
 	if resp.StatusCode == 403 {
 		if token == "" {

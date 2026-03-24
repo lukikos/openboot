@@ -39,6 +39,7 @@ shell configuration, and macOS preferences.`,
   # Capture your current environment
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		config.SetClientVersion(version)
 		updater.AutoUpgrade(version)
 		config.RefreshPackagesFromRemote()
 

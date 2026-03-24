@@ -64,9 +64,17 @@ func loadRemotePackages() ([]remotePackage, error) {
 
 func fetchRemotePackages() ([]remotePackage, error) {
 	apiURL := getAPIBase() + "/api/packages"
-	client := &http.Client{Timeout: 8 * time.Second}
 
-	resp, err := client.Get(apiURL)
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch packages: %w", err)
+	}
+
+	client := &http.Client{
+		Timeout:   8 * time.Second,
+		Transport: &versionTransport{base: http.DefaultTransport},
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch packages: %w", err)
 	}

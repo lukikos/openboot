@@ -92,3 +92,96 @@ jobs:
             coverage.out
             coverage.html
           retention-days: 7
+
+  curl-bash-smoke:
+    name: curl|bash smoke
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build
+        run: make build
+
+      - name: Start mock server
+        run: |
+          python3 scripts/mock-server.py 18888 ./openboot &
+          echo $! > /tmp/mock-pid
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:18888/api/packages >/dev/null 2>&1 && break
+            sleep 0.3
+          done
+
+      - name: Run curl|bash install (dry-run)
+        run: curl -fsSL http://localhost:18888/testuser/test-config/install | bash
+
+      - name: Stop mock server
+        if: always()
+        run: kill $(cat /tmp/mock-pid) 2>/dev/null || true
+
+  cli-compat:
+    name: old-cli compat
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get previous release version
+        id: prev
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PREV=$(curl -sf https://api.github.com/repos/openbootdotdev/openboot/releases \
+            -H "Authorization: Bearer $GITHUB_TOKEN" | \
+            python3 -c "
+          import json, sys
+          releases = json.load(sys.stdin)
+          stable = [r for r in releases if not r.get('prerelease') and not r.get('draft')]
+          if len(stable) >= 2:
+              print(stable[1]['tag_name'])
+          elif len(stable) == 1:
+              print(stable[0]['tag_name'])
+          else:
+              sys.exit(1)
+          " 2>/dev/null) || true
+          echo "version=$PREV" >> $GITHUB_OUTPUT
+
+      - name: Download previous release binary
+        if: steps.prev.outputs.version != ''
+        run: |
+          VER="${{ steps.prev.outputs.version }}"
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "arm64" ]; then
+            SUFFIX="darwin-arm64"
+          else
+            SUFFIX="darwin-amd64"
+          fi
+          curl -fsSL \
+            "https://github.com/openbootdotdev/openboot/releases/download/${VER}/openboot-${SUFFIX}" \
+            -o /tmp/openboot-prev
+          chmod +x /tmp/openboot-prev
+
+      - name: Start mock server for compat test
+        if: steps.prev.outputs.version != ''
+        run: |
+          python3 scripts/mock-server.py 18889 /tmp/openboot-prev &
+          echo $! > /tmp/compat-mock-pid
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:18889/api/packages >/dev/null 2>&1 && break
+            sleep 0.3
+          done
+
+      - name: Run previous binary against current mock
+        if: steps.prev.outputs.version != ''
+        run: |
+          OPENBOOT_DRY_RUN=true OPENBOOT_API_URL=http://localhost:18889 \
+            /tmp/openboot-prev -s -u testuser/test-config
+
+      - name: Stop compat mock server
+        if: always()
+        run: kill $(cat /tmp/compat-mock-pid) 2>/dev/null || true

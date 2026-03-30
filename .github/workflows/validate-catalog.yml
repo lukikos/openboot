@@ -13,55 +13,53 @@ jobs:
 
       - name: Check packages exist in Homebrew
         run: |
-          pip3 install pyyaml -q
-          python3 - << 'EOF'
-          import subprocess, sys, yaml
+          CATALOG="internal/config/data/packages.yaml"
+          failed=()
 
-          with open("internal/config/data/packages.yaml") as f:
-              data = yaml.safe_load(f)
+          # Extract all package names (lines matching "      - name: <value>")
+          # then pair with their type by reading surrounding context
+          while IFS= read -r line; do
+            name=$(echo "$line" | sed 's/.*- name: //' | tr -d ' ')
+            [[ -z "$name" ]] && continue
 
-          formulae, casks, taps_needed = [], [], set()
+            # Skip category names (they appear as "  - name: Category")
+            # Package names are indented with 6 spaces
+            indent=$(echo "$line" | sed 's/[^ ].*//' | wc -c)
+            [[ $indent -lt 7 ]] && continue
 
-          for category in data.get("categories", []):
-              for pkg in category.get("packages", []):
-                  name = pkg["name"]
-                  if pkg.get("npm"):
-                      continue  # npm packages not validated here
-                  if pkg.get("cask"):
-                      casks.append(name)
-                  else:
-                      formulae.append(name)
-                      # tap-qualified: owner/repo/formula
-                      parts = name.split("/")
-                      if len(parts) == 3:
-                          taps_needed.add(f"{parts[0]}/{parts[1]}")
+            # Check if this package is a cask (look ahead in file)
+            is_cask=$(awk "/- name: ${name}$/,/- name:/" "$CATALOG" | grep -c "cask: true" || true)
+            is_npm=$(awk "/- name: ${name}$/,/- name:/" "$CATALOG" | grep -c "npm: true" || true)
 
-          # Add required taps
-          for tap in taps_needed:
-              subprocess.run(["brew", "tap", tap], capture_output=True)
+            [[ $is_npm -gt 0 ]] && continue  # skip npm packages
 
-          failed = []
+            # For tap-qualified names (owner/repo/formula), add tap first
+            slash_count=$(echo "$name" | tr -cd '/' | wc -c)
+            if [[ $slash_count -eq 2 ]]; then
+              tap=$(echo "$name" | cut -d'/' -f1-2)
+              brew tap "$tap" --quiet 2>/dev/null || true
+            fi
 
-          print(f"Checking {len(formulae)} formulae and {len(casks)} casks...\n")
+            if [[ $is_cask -gt 0 ]]; then
+              if ! brew info --cask "$name" &>/dev/null; then
+                echo "  MISSING cask: $name"
+                failed+=("$name")
+              fi
+            else
+              if ! brew info "$name" &>/dev/null; then
+                echo "  MISSING formula: $name"
+                failed+=("$name")
+              fi
+            fi
+          done < <(grep -n "      - name: " "$CATALOG")
 
-          for name in formulae:
-              result = subprocess.run(["brew", "info", name], capture_output=True)
-              if result.returncode != 0:
-                  print(f"  MISSING formula: {name}")
-                  failed.append(name)
-
-          for name in casks:
-              result = subprocess.run(["brew", "info", "--cask", name], capture_output=True)
-              if result.returncode != 0:
-                  print(f"  MISSING cask: {name}")
-                  failed.append(name)
-
-          if failed:
-              print(f"\n{len(failed)} package(s) not found in Homebrew:")
-              for name in failed:
-                  print(f"  - {name}")
-              print("\nUpdate packages.yaml to fix or remove these entries.")
-              sys.exit(1)
-          else:
-              print(f"All packages validated OK.")
-          EOF
+          echo ""
+          if [[ ${#failed[@]} -gt 0 ]]; then
+            echo "${#failed[@]} package(s) not found in Homebrew:"
+            for p in "${failed[@]}"; do echo "  - $p"; done
+            echo ""
+            echo "Update packages.yaml to fix or remove these entries."
+            exit 1
+          else
+            echo "All packages validated OK."
+          fi

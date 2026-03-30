@@ -239,12 +239,10 @@ jobs:
 
             depends_on :macos
 
-            on_arm do
+            if Hardware::CPU.arm?
               url "https://github.com/openbootdotdev/openboot/releases/download/vVERSION_PLACEHOLDER/openboot-darwin-arm64"
               sha256 "ARM64_SHA_PLACEHOLDER"
-            end
-
-            on_intel do
+            else
               url "https://github.com/openbootdotdev/openboot/releases/download/vVERSION_PLACEHOLDER/openboot-darwin-amd64"
               sha256 "AMD64_SHA_PLACEHOLDER"
             end
@@ -274,5 +272,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/openboot.rb
           git diff --cached --quiet && echo "No changes" && exit 0
-          git commit -m "openboot ${{ needs.detect-release-type.outputs.version_clean }}"
+          git commit -m "chore: bump openboot to ${{ needs.detect-release-type.outputs.version_clean }}"
           git push

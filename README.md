@@ -212,6 +212,16 @@ openboot version                # Print version
 
 </details>
 
+## AI Agent Integration
+
+```bash
+openboot setup-agent
+```
+
+One-time setup. Writes a global rule to your AI coding agent so it uses `openboot init` when it encounters missing dependencies — instead of installing them one by one.
+
+Supports Claude Code and OpenAI Codex.
+
 ---
 
 ## FAQ

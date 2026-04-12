@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteConfigToAPIPackages(t *testing.T) {
@@ -105,4 +109,70 @@ func TestTapsNotInRequestBodyAsTopLevelField(t *testing.T) {
 	}
 	assert.Len(t, tapEntries, 1)
 	assert.Equal(t, "hashicorp/tap", tapEntries[0].Name)
+}
+
+// ── fetchUserConfigs ───────────────────────────────────────────────────────────
+
+func TestFetchUserConfigs_ReturnsConfigs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/configs", r.URL.Path)
+		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"configs": []map[string]any{
+				{"slug": "my-setup", "name": "My Mac Setup"},
+				{"slug": "work-mac", "name": "Work Machine"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	configs, err := fetchUserConfigs("test-token", server.URL)
+
+	require.NoError(t, err)
+	require.Len(t, configs, 2)
+	assert.Equal(t, "my-setup", configs[0].Slug)
+	assert.Equal(t, "My Mac Setup", configs[0].Name)
+	assert.Equal(t, "work-mac", configs[1].Slug)
+}
+
+func TestFetchUserConfigs_EmptyList(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}})
+	}))
+	defer server.Close()
+
+	configs, err := fetchUserConfigs("test-token", server.URL)
+
+	require.NoError(t, err)
+	assert.Empty(t, configs)
+}
+
+func TestFetchUserConfigs_ServerError_ReturnsNilNotError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	configs, err := fetchUserConfigs("test-token", server.URL)
+
+	// non-200 is treated as non-fatal: nil slice, no error
+	assert.NoError(t, err)
+	assert.Nil(t, configs)
+}
+
+// ── pickOrCreateConfig ────────────────────────────────────────────────────────
+
+func TestPickOrCreateConfig_NoConfigs_ReturnsEmptySlug(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}})
+	}))
+	defer server.Close()
+
+	// With no existing configs there is nothing to select — returns "" immediately
+	// (caller will run the create-new prompt flow).
+	slug, err := pickOrCreateConfig("test-token", server.URL)
+
+	require.NoError(t, err)
+	assert.Equal(t, "", slug)
 }

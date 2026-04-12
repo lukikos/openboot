@@ -59,7 +59,8 @@ func init() {
 }
 
 // runPushAuto captures the current system snapshot and uploads it to openboot.dev.
-// If a sync source is configured, it updates that config; otherwise, creates a new one.
+// If a sync source is configured, it updates that config silently; otherwise, it
+// presents an interactive picker so the user can choose an existing config or create a new one.
 func runPushAuto(slugOverride, message string) error {
 	apiBase := auth.GetAPIBase()
 
@@ -93,11 +94,17 @@ func runPushAuto(slugOverride, message string) error {
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
 
-	// Determine slug: use override, then sync source, then blank (create new)
+	// Determine slug: --slug flag → sync source → interactive picker
 	slug := slugOverride
 	if slug == "" {
 		if source, loadErr := syncpkg.LoadSource(); loadErr == nil && source != nil && source.Slug != "" {
 			slug = source.Slug
+		}
+	}
+	if slug == "" {
+		slug, err = pickOrCreateConfig(stored.Token, apiBase)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -149,16 +156,26 @@ func pushSnapshot(data []byte, slug, message, token, username, apiBase string) e
 		return fmt.Errorf("parse snapshot: %w", err)
 	}
 
-	name, desc, visibility, err := promptPushDetails("")
-	if err != nil {
-		return err
+	// Updating an existing config: skip all prompts.
+	// Creating a new config: ask for name, description, visibility.
+	var name, desc, visibility string
+	if slug == "" {
+		var err error
+		name, desc, visibility, err = promptPushDetails("")
+		if err != nil {
+			return err
+		}
 	}
 
 	reqBody := map[string]interface{}{
-		"name":        name,
-		"description": desc,
-		"snapshot":    snap,
-		"visibility":  visibility,
+		"snapshot":   snap,
+		"visibility": visibility,
+	}
+	if name != "" {
+		reqBody["name"] = name
+	}
+	if desc != "" {
+		reqBody["description"] = desc
 	}
 	if slug != "" {
 		reqBody["config_slug"] = slug
@@ -317,6 +334,76 @@ func doUpload(url string, body []byte, token, username, slug string) error {
 	fmt.Fprintln(os.Stderr)
 
 	return nil
+}
+
+type remoteConfigSummary struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+// fetchUserConfigs calls GET /api/configs and returns the user's existing configs.
+func fetchUserConfigs(token, apiBase string) ([]remoteConfigSummary, error) {
+	req, err := http.NewRequest(http.MethodGet, apiBase+"/api/configs", nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := httputil.Do(client, req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch configs: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil // non-fatal — fall through to create-new flow
+	}
+
+	var result struct {
+		Configs []remoteConfigSummary `json:"configs"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, nil
+	}
+	return result.Configs, nil
+}
+
+const createNewOption = "+ Create a new config"
+
+// pickOrCreateConfig shows an interactive list of the user's existing configs plus a
+// "Create new" option. Returns the chosen slug (non-empty = update existing), or ""
+// (= create new, caller must ask for name/desc/visibility).
+func pickOrCreateConfig(token, apiBase string) (string, error) {
+	configs, _ := fetchUserConfigs(token, apiBase) // ignore fetch errors — just show create-new
+
+	if len(configs) == 0 {
+		return "", nil // no existing configs — skip picker, go straight to create-new
+	}
+
+	options := make([]string, 0, len(configs)+1)
+	for _, c := range configs {
+		label := c.Slug
+		if c.Name != "" && c.Name != c.Slug {
+			label = fmt.Sprintf("%s — %s", c.Slug, c.Name)
+		}
+		options = append(options, label)
+	}
+	options = append(options, createNewOption)
+
+	fmt.Fprintln(os.Stderr)
+	choice, err := ui.SelectOption("Push to which config?", options)
+	if err != nil {
+		return "", fmt.Errorf("select config: %w", err)
+	}
+
+	if choice == createNewOption {
+		return "", nil // caller will prompt for name/desc/visibility
+	}
+
+	// Extract slug from "slug — Name" label
+	slug := strings.SplitN(choice, " — ", 2)[0]
+	return slug, nil
 }
 
 func promptPushDetails(defaultName string) (string, string, string, error) {

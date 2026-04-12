@@ -337,8 +337,9 @@ func doUpload(url string, body []byte, token, username, slug string) error {
 }
 
 type remoteConfigSummary struct {
-	Slug string `json:"slug"`
-	Name string `json:"name"`
+	Slug       string `json:"slug"`
+	Name       string `json:"name"`
+	Visibility string `json:"visibility"`
 }
 
 // fetchUserConfigs calls GET /api/configs and returns the user's existing configs.

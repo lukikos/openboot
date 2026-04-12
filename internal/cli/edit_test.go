@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,27 +19,50 @@ func TestRunEdit_NotAuthenticated(t *testing.T) {
 	assert.Contains(t, err.Error(), "not logged in")
 }
 
-func TestRunEdit_NoSlug_NoSyncSource(t *testing.T) {
+func TestRunEdit_WithSlugFlag_OpensDirectly(t *testing.T) {
 	setupTestAuth(t, true)
+
+	// With --slug, no API call is made (no picker needed).
+	// exec.Command("open", url) succeeds on macOS; error is from "open" only.
+	err := runEdit("my-config")
+
+	if err != nil {
+		assert.Contains(t, err.Error(), "open browser")
+	}
+}
+
+func TestRunEdit_NoConfigs_ReturnsError(t *testing.T) {
+	setupTestAuth(t, true)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}})
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	err := runEdit("")
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no config slug")
+	assert.Contains(t, err.Error(), "no configs found")
 }
 
-func TestRunEdit_SlugFromSyncSource(t *testing.T) {
-	tmpDir := setupTestAuth(t, true)
-	writeSyncSource(t, tmpDir, "my-setup")
+func TestPickConfig_NoConfigs_ReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}})
+	}))
+	defer server.Close()
 
-	// exec.Command("open", url) will fail in CI / test environment — that's fine,
-	// we just verify the slug resolution works and the error is from "open", not auth/slug.
-	err := runEdit("")
+	_, err := pickConfig("test-token", server.URL)
 
-	// The only error allowed is from the "open" binary itself (not found in some envs).
-	if err != nil {
-		assert.Contains(t, err.Error(), "open browser")
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no configs found")
+}
+
+func TestSplitBefore(t *testing.T) {
+	assert.Equal(t, "my-setup", splitBefore("my-setup — My Mac Setup", " — "))
+	assert.Equal(t, "work-mac", splitBefore("work-mac — Work Machine", " — "))
+	assert.Equal(t, "no-sep", splitBefore("no-sep", " — "))
 }
 
 func TestEditCmd_CommandStructure(t *testing.T) {
@@ -44,6 +70,5 @@ func TestEditCmd_CommandStructure(t *testing.T) {
 	assert.NotEmpty(t, editCmd.Short)
 	assert.NotEmpty(t, editCmd.Long)
 	assert.NotNil(t, editCmd.RunE)
-
 	assert.NotNil(t, editCmd.Flags().Lookup("slug"))
 }

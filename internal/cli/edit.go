@@ -5,22 +5,20 @@ import (
 	"os/exec"
 
 	"github.com/openbootdotdev/openboot/internal/auth"
-	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var editCmd = &cobra.Command{
 	Use:   "edit",
-	Short: "Open your config on openboot.dev in the browser",
-	Long: `Open your remote config on openboot.dev in the default browser.
+	Short: "Open a config on openboot.dev in the browser",
+	Long: `Pick a config from your openboot.dev account and open it in the browser.
 
-Resolves the config slug from the current sync source (set when you last ran
-'openboot install' or 'openboot push'). Use --slug to open a specific config.`,
-	Example: `  # Open your linked config in the browser
+Use --slug to skip the picker and open a specific config directly.`,
+	Example: `  # Pick a config interactively
   openboot edit
 
-  # Open a specific config
+  # Open a specific config directly
   openboot edit --slug my-config`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -30,7 +28,7 @@ Resolves the config slug from the current sync source (set when you last ran
 }
 
 func init() {
-	editCmd.Flags().String("slug", "", "config slug to open (default: current sync source)")
+	editCmd.Flags().String("slug", "", "config slug to open (skips the picker)")
 	rootCmd.AddCommand(editCmd)
 }
 
@@ -49,12 +47,14 @@ func runEdit(slugOverride string) error {
 
 	slug := slugOverride
 	if slug == "" {
-		if source, loadErr := syncpkg.LoadSource(); loadErr == nil && source != nil && source.Slug != "" {
-			slug = source.Slug
+		slug, err = pickConfig(stored.Token, auth.GetAPIBase())
+		if err != nil {
+			return err
 		}
-	}
-	if slug == "" {
-		return fmt.Errorf("no config slug — use --slug or run 'openboot install <config>' first")
+		if slug == "" {
+			ui.Info("No config selected.")
+			return nil
+		}
 	}
 
 	url := fmt.Sprintf("https://openboot.dev/%s/%s", stored.Username, slug)
@@ -65,4 +65,42 @@ func runEdit(slugOverride string) error {
 
 	ui.Success(fmt.Sprintf("Opened %s", url))
 	return nil
+}
+
+// pickConfig fetches the user's configs and shows an interactive select list.
+// Returns the chosen slug, or "" if the user has no configs.
+func pickConfig(token, apiBase string) (string, error) {
+	configs, _ := fetchUserConfigs(token, apiBase)
+
+	if len(configs) == 0 {
+		return "", fmt.Errorf("no configs found — run 'openboot push' to create one")
+	}
+
+	options := make([]string, 0, len(configs))
+	for _, c := range configs {
+		label := c.Slug
+		if c.Name != "" && c.Name != c.Slug {
+			label = fmt.Sprintf("%s — %s", c.Slug, c.Name)
+		}
+		options = append(options, label)
+	}
+
+	fmt.Println()
+	choice, err := ui.SelectOption("Which config would you like to edit?", options)
+	if err != nil {
+		return "", fmt.Errorf("select config: %w", err)
+	}
+
+	// Extract slug from "slug — Name" label
+	slug := splitBefore(choice, " — ")
+	return slug, nil
+}
+
+func splitBefore(s, sep string) string {
+	for i := 0; i < len(s)-len(sep)+1; i++ {
+		if s[i:i+len(sep)] == sep {
+			return s[:i]
+		}
+	}
+	return s
 }

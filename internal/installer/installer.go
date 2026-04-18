@@ -202,7 +202,7 @@ func runCustomInstall(opts *config.InstallOptions, st *config.InstallState) erro
 
 	if len(softErrs) > 0 {
 		fmt.Println()
-		ui.Warn(fmt.Sprintf("%d setup step(s) had errors — run 'openboot doctor' to diagnose.", len(softErrs)))
+		ui.Warn(fmt.Sprintf("%d setup step(s) had errors — check the output above for details.", len(softErrs)))
 		return errors.Join(softErrs...)
 	}
 	return nil
@@ -255,7 +255,7 @@ func runInteractiveInstall(opts *config.InstallOptions, st *config.InstallState)
 
 	if len(softErrs) > 0 {
 		fmt.Println()
-		ui.Warn(fmt.Sprintf("%d setup step(s) had errors — run 'openboot doctor' to diagnose.", len(softErrs)))
+		ui.Warn(fmt.Sprintf("%d setup step(s) had errors — check the output above for details.", len(softErrs)))
 		return errors.Join(softErrs...)
 	}
 	return nil
@@ -324,7 +324,7 @@ func RunFromSnapshot(cfg *config.Config) error {
 
 	if len(softErrs) > 0 {
 		fmt.Println()
-		ui.Warn(fmt.Sprintf("%d restore step(s) had errors — run 'openboot doctor' to diagnose.", len(softErrs)))
+		ui.Warn(fmt.Sprintf("%d restore step(s) had errors — check the output above for details.", len(softErrs)))
 		return errors.Join(softErrs...)
 	}
 	return nil

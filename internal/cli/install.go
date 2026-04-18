@@ -12,7 +12,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/installer"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/ui"
-	"github.com/openbootdotdev/openboot/internal/updater"
 	"github.com/spf13/cobra"
 )
 
@@ -87,8 +86,6 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	updater.AutoUpgrade(version)
-	cfg.Version = version
 	err := installer.Run(cfg)
 	if errors.Is(err, installer.ErrUserCancelled) {
 		return nil

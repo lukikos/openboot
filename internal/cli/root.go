@@ -38,6 +38,7 @@ shell configuration, and macOS preferences.`,
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		config.SetClientVersion(version)
+		cfg.Version = version
 
 		// Skip network operations for lightweight commands that don't
 		// need the package catalog or auto-update check.

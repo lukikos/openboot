@@ -42,6 +42,8 @@ func RefreshPackagesFromRemote() {
 	if err != nil || len(pkgs) == 0 {
 		return // keep embedded fallback
 	}
+	categoriesMu.Lock()
+	defer categoriesMu.Unlock()
 	mergeRemotePackages(pkgs)
 }
 

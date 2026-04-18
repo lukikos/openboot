@@ -3,6 +3,7 @@ package config
 import (
 	"embed"
 	"log"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -27,7 +28,10 @@ type packagesData struct {
 	Categories []Category `yaml:"categories"`
 }
 
-var Categories []Category
+var (
+	Categories   []Category
+	categoriesMu sync.RWMutex
+)
 
 func init() {
 	data, err := packagesYAML.ReadFile("data/packages.yaml")
@@ -65,6 +69,8 @@ func GetPackagesForPreset(presetName string) map[string]bool {
 }
 
 func GetAllPackageNames() []string {
+	categoriesMu.RLock()
+	defer categoriesMu.RUnlock()
 	var names []string
 	for _, cat := range Categories {
 		for _, pkg := range cat.Packages {
@@ -75,6 +81,8 @@ func GetAllPackageNames() []string {
 }
 
 func IsNpmPackage(name string) bool {
+	categoriesMu.RLock()
+	defer categoriesMu.RUnlock()
 	for _, cat := range Categories {
 		for _, pkg := range cat.Packages {
 			if pkg.Name == name {
@@ -86,6 +94,8 @@ func IsNpmPackage(name string) bool {
 }
 
 func IsCaskPackage(name string) bool {
+	categoriesMu.RLock()
+	defer categoriesMu.RUnlock()
 	for _, cat := range Categories {
 		for _, pkg := range cat.Packages {
 			if pkg.Name == name {
@@ -99,6 +109,8 @@ func IsCaskPackage(name string) bool {
 // CatalogDescriptionMap builds a name → description lookup from the embedded
 // packages catalog. Use as a fallback when PackageEntry.Desc is empty.
 func CatalogDescriptionMap() map[string]string {
+	categoriesMu.RLock()
+	defer categoriesMu.RUnlock()
 	m := make(map[string]string)
 	for _, cat := range Categories {
 		for _, pkg := range cat.Packages {

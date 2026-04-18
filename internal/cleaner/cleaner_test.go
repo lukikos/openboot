@@ -2,22 +2,39 @@ package cleaner
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupFakeBrew(t *testing.T, script string) {
+// brewFake implements brew.Runner by dispatching every call to a single
+// user-provided handler. Lets tests stub brew behavior without forking a
+// real binary.
+type brewFake struct {
+	handler func(args []string) ([]byte, error)
+}
+
+func (b *brewFake) Output(args ...string) ([]byte, error) {
+	return b.handler(args)
+}
+
+func (b *brewFake) CombinedOutput(_ []string, args ...string) ([]byte, error) {
+	return b.handler(args)
+}
+
+func (b *brewFake) Run(args ...string) error {
+	_, err := b.handler(args)
+	return err
+}
+
+// withFakeBrew installs a brewFake as the brew package's runner for the
+// duration of the test, then restores the previous runner.
+func withFakeBrew(t *testing.T, handler func(args []string) ([]byte, error)) {
 	t.Helper()
-	tmpDir := t.TempDir()
-	brewPath := filepath.Join(tmpDir, "brew")
-	require.NoError(t, os.WriteFile(brewPath, []byte(script), 0755))
-	originalPath := os.Getenv("PATH")
-	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+originalPath)
+	t.Cleanup(brew.SetRunner(&brewFake{handler: handler}))
 }
 
 func TestToSet(t *testing.T) {
@@ -228,7 +245,7 @@ func TestExecute_DryRun_Formulae(t *testing.T) {
 }
 
 func TestExecute_WithFakeBrew_Success(t *testing.T) {
-	setupFakeBrew(t, "#!/bin/sh\nexit 0\n")
+	withFakeBrew(t, func(args []string) ([]byte, error) { return nil, nil })
 	result := &CleanResult{
 		ExtraFormulae: []string{"wget"},
 		ExtraCasks:    []string{"firefox"},
@@ -242,7 +259,9 @@ func TestExecute_WithFakeBrew_Success(t *testing.T) {
 }
 
 func TestExecute_WithFakeBrew_Failure(t *testing.T) {
-	setupFakeBrew(t, "#!/bin/sh\necho 'Error: No such keg'\nexit 1\n")
+	withFakeBrew(t, func(args []string) ([]byte, error) {
+		return []byte("Error: No such keg"), errors.New("exit 1")
+	})
 	result := &CleanResult{
 		ExtraFormulae: []string{"bad-pkg"},
 	}
@@ -253,23 +272,17 @@ func TestExecute_WithFakeBrew_Failure(t *testing.T) {
 }
 
 func TestDiffFromLists_ExtraPackages(t *testing.T) {
-	setupFakeBrew(t, "#!/bin/sh\n"+
-		"if [ \"$1\" = \"leaves\" ]; then\n"+
-		"  echo git\n"+
-		"  echo wget\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
-		"  echo git\n"+
-		"  echo wget\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
-		"  echo firefox\n"+
-		"  echo slack\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"exit 0\n")
+	withFakeBrew(t, func(args []string) ([]byte, error) {
+		switch {
+		case len(args) >= 1 && args[0] == "leaves":
+			return []byte("git\nwget\n"), nil
+		case len(args) >= 2 && args[0] == "list" && args[1] == "--formula":
+			return []byte("git\nwget\n"), nil
+		case len(args) >= 2 && args[0] == "list" && args[1] == "--cask":
+			return []byte("firefox\nslack\n"), nil
+		}
+		return nil, nil
+	})
 
 	result, err := DiffFromLists([]string{"git"}, []string{"firefox"}, nil, nil)
 	require.NoError(t, err)
@@ -280,19 +293,17 @@ func TestDiffFromLists_ExtraPackages(t *testing.T) {
 }
 
 func TestDiffFromLists_NoExtras(t *testing.T) {
-	setupFakeBrew(t, "#!/bin/sh\n"+
-		"if [ \"$1\" = \"leaves\" ]; then\n"+
-		"  echo git\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
-		"  echo git\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"exit 0\n")
+	withFakeBrew(t, func(args []string) ([]byte, error) {
+		switch {
+		case len(args) >= 1 && args[0] == "leaves":
+			return []byte("git\n"), nil
+		case len(args) >= 2 && args[0] == "list" && args[1] == "--formula":
+			return []byte("git\n"), nil
+		case len(args) >= 2 && args[0] == "list" && args[1] == "--cask":
+			return nil, nil
+		}
+		return nil, nil
+	})
 
 	result, err := DiffFromLists([]string{"git"}, nil, nil, nil)
 	require.NoError(t, err)
@@ -301,22 +312,13 @@ func TestDiffFromLists_NoExtras(t *testing.T) {
 }
 
 func TestDiffFromLists_WithExtraTaps(t *testing.T) {
-	setupFakeBrew(t, "#!/bin/sh\n"+
-		"if [ \"$1\" = \"leaves\" ]; then\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"tap\" ]; then\n"+
-		"  echo homebrew/cask-fonts\n"+
-		"  echo hashicorp/tap\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"exit 0\n")
+	withFakeBrew(t, func(args []string) ([]byte, error) {
+		switch {
+		case len(args) >= 1 && args[0] == "tap":
+			return []byte("homebrew/cask-fonts\nhashicorp/tap\n"), nil
+		}
+		return nil, nil
+	})
 
 	result, err := DiffFromLists(nil, nil, nil, []string{"homebrew/cask-fonts"})
 	require.NoError(t, err)
@@ -325,17 +327,7 @@ func TestDiffFromLists_WithExtraTaps(t *testing.T) {
 }
 
 func TestDiffFromLists_TapsPathSkippedWhenEmpty(t *testing.T) {
-	setupFakeBrew(t, "#!/bin/sh\n"+
-		"if [ \"$1\" = \"leaves\" ]; then\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"exit 0\n")
+	withFakeBrew(t, func(args []string) ([]byte, error) { return nil, nil })
 
 	result, err := DiffFromLists(nil, nil, nil, nil)
 	require.NoError(t, err)
@@ -353,21 +345,15 @@ func TestCleanResult_TotalExtra_WithTaps(t *testing.T) {
 }
 
 func TestDiffFromSnapshot_ExtraPackages(t *testing.T) {
-	setupFakeBrew(t, "#!/bin/sh\n"+
-		"if [ \"$1\" = \"leaves\" ]; then\n"+
-		"  echo git\n"+
-		"  echo ripgrep\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
-		"  echo git\n"+
-		"  echo ripgrep\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
-		"  exit 0\n"+
-		"fi\n"+
-		"exit 0\n")
+	withFakeBrew(t, func(args []string) ([]byte, error) {
+		switch {
+		case len(args) >= 1 && args[0] == "leaves":
+			return []byte("git\nripgrep\n"), nil
+		case len(args) >= 2 && args[0] == "list" && args[1] == "--formula":
+			return []byte("git\nripgrep\n"), nil
+		}
+		return nil, nil
+	})
 
 	snap := &snapshot.Snapshot{
 		Packages: snapshot.PackageSnapshot{

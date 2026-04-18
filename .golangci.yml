@@ -1,0 +1,32 @@
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+    - exhaustive
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    errcheck:
+      exclude-functions:
+        - (net/http.Response).Body.Close
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        - os.WriteFile
+        - (*os.File).Close
+  exclusions:
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - errcheck

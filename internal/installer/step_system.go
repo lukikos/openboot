@@ -34,7 +34,9 @@ func applyMacOSPrefs(plan InstallPlan, r Reporter) error {
 		return fmt.Errorf("configure macOS preferences: %w", err)
 	}
 	r.Success(fmt.Sprintf("macOS preferences configured (%d settings)", len(plan.MacOSPrefs)))
-	macos.RestartAffectedApps(false)
+	if err := macos.RestartAffectedApps(false); err != nil {
+		r.Warn(fmt.Sprintf("Could not restart affected apps: %v", err))
+	}
 	fmt.Println()
 	return nil
 }
@@ -117,7 +119,9 @@ func stepMacOS(opts *config.InstallOptions, st *config.InstallState) error {
 		}
 		if !opts.DryRun {
 			ui.Success("macOS preferences configured")
-			macos.RestartAffectedApps(opts.DryRun)
+			if err := macos.RestartAffectedApps(opts.DryRun); err != nil {
+				ui.Warn(fmt.Sprintf("Could not restart affected apps: %v", err))
+			}
 		}
 		fmt.Println()
 		return nil
@@ -148,13 +152,14 @@ func stepMacOS(opts *config.InstallOptions, st *config.InstallState) error {
 
 	if !opts.DryRun {
 		ui.Success(fmt.Sprintf("macOS preferences configured (%d settings)", len(selected)))
-		macos.RestartAffectedApps(opts.DryRun)
+		if err := macos.RestartAffectedApps(opts.DryRun); err != nil {
+			ui.Warn(fmt.Sprintf("Could not restart affected apps: %v", err))
+		}
 	}
 
 	fmt.Println()
 	return nil
 }
-
 
 func stepPostInstall(opts *config.InstallOptions, st *config.InstallState) error {
 	if opts.PostInstall == "skip" {

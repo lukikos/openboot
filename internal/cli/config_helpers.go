@@ -33,7 +33,7 @@ func fetchUserConfigs(token, apiBase string) ([]remoteConfigSummary, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch configs: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil

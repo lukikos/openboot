@@ -82,7 +82,7 @@ func TestFetchRemoteConfig_PublicConfig_NoToken(t *testing.T) {
 		assert.Empty(t, r.Header.Get("Authorization"))
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(mockConfig)
+		json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 	}))
 	defer server.Close()
 
@@ -135,7 +135,7 @@ func TestFetchRemoteConfig_PrivateConfig_WithValidToken(t *testing.T) {
 		assert.Equal(t, "Bearer obt_valid_token", r.Header.Get("Authorization"))
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(mockConfig)
+		json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 	}))
 	defer server.Close()
 
@@ -206,7 +206,7 @@ func TestFetchRemoteConfig_DefaultSlug(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		case "/testuser/default/config":
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(mockConfig)
+			json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -266,7 +266,7 @@ func TestFetchRemoteConfig_AliasResolution(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/configs/alias/testuser":
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(mockConfig)
+			json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -301,7 +301,7 @@ func TestFetchRemoteConfig_NoAliasFallsBackToDefault(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		case "/testuser/default/config":
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(mockConfig)
+			json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -499,20 +499,20 @@ func TestUnmarshalRemoteConfigFlexible_ObjectArrayWithDesc(t *testing.T) {
 func TestFetchRemoteConfig_ObjectArrayFormat(t *testing.T) {
 	// Server now returns {name, desc} objects instead of flat strings.
 	mockConfig := map[string]interface{}{
-		"username":     "testuser",
-		"slug":         "myconfig",
-		"name":         "Test Config",
-		"preset":       "developer",
-		"packages":     []map[string]string{{"name": "git", "desc": "Version control"}, {"name": "curl", "desc": "Transfer data"}},
-		"casks":        []map[string]string{{"name": "firefox", "desc": "Browser"}},
-		"taps":         []string{"homebrew/cask-fonts"},
-		"npm":          []map[string]string{{"name": "typescript", "desc": "Typed JS"}},
+		"username":      "testuser",
+		"slug":          "myconfig",
+		"name":          "Test Config",
+		"preset":        "developer",
+		"packages":      []map[string]string{{"name": "git", "desc": "Version control"}, {"name": "curl", "desc": "Transfer data"}},
+		"casks":         []map[string]string{{"name": "firefox", "desc": "Browser"}},
+		"taps":          []string{"homebrew/cask-fonts"},
+		"npm":           []map[string]string{{"name": "typescript", "desc": "Typed JS"}},
 		"dotfiles_repo": "https://github.com/testuser/dotfiles",
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(mockConfig)
+		json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 	}))
 	defer server.Close()
 

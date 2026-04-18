@@ -111,7 +111,7 @@ func startAuthSession(apiBase string) (codeID, code string, err error) {
 	if err != nil {
 		return "", "", fmt.Errorf("start auth session: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort; body already read
 
 	if resp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("auth start failed with status %d", resp.StatusCode)
@@ -162,7 +162,7 @@ func pollOnce(pollURL string) (*cliPollResponse, bool, error) {
 	if err != nil {
 		return nil, false, nil
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort; body already read
 
 	var result cliPollResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&result); err != nil {

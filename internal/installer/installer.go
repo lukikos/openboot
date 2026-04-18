@@ -251,57 +251,6 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 	return nil
 }
 
-func showCompletion(opts *config.InstallOptions, st *config.InstallState) {
-	var cliCount, caskCount, npmCount int
-	for _, cat := range config.GetCategories() {
-		for _, pkg := range cat.Packages {
-			if st.SelectedPkgs[pkg.Name] {
-				if pkg.IsNpm {
-					npmCount++
-				} else if pkg.IsCask {
-					caskCount++
-				} else {
-					cliCount++
-				}
-			}
-		}
-	}
-	for _, pkg := range st.OnlinePkgs {
-		if pkg.IsNpm {
-			npmCount++
-		} else if pkg.IsCask {
-			caskCount++
-		} else {
-			cliCount++
-		}
-	}
-
-	fmt.Println()
-	ui.Header("Installation Complete!")
-	fmt.Println()
-
-	ui.Success("OpenBoot has successfully configured your Mac.")
-	fmt.Println()
-
-	ui.Info("What was installed:")
-	if !opts.PackagesOnly {
-		ui.Info("  - Git configured with your identity")
-	}
-	ui.Info(fmt.Sprintf("  - %d CLI packages", cliCount))
-	ui.Info(fmt.Sprintf("  - %d GUI applications", caskCount))
-	if npmCount > 0 {
-		ui.Info(fmt.Sprintf("  - %d npm global packages", npmCount))
-	}
-	fmt.Println()
-
-	showScreenRecordingReminder(opts, st)
-
-	ui.Info("Next steps:")
-	ui.Info("  - Restart your terminal to apply changes")
-	ui.Info("  - Run 'brew doctor' to verify Homebrew health")
-	fmt.Println()
-}
-
 func printPackageList(label string, pkgs config.PackageEntryList) {
 	if len(pkgs) == 0 {
 		return

@@ -129,7 +129,6 @@ func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-
 func TestRunInstall_DryRunRemoteConfig(t *testing.T) {
 	cfg := &config.Config{
 		DryRun: true,
@@ -721,7 +720,6 @@ func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
 	_, statErr := os.Stat(markerFile)
 	assert.NoError(t, statErr, "second command should still run after first fails")
 }
-
 
 func TestReconcileBrewWithSystem_RemovesUninstalledPackages(t *testing.T) {
 	state := newInstallState()

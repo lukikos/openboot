@@ -377,7 +377,7 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibili
 	if err != nil {
 		return "", fmt.Errorf("upload snapshot: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
@@ -626,7 +626,7 @@ func downloadSnapshotBytes(url string, client *http.Client) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("download snapshot: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download snapshot: HTTP %d", resp.StatusCode)
 	}

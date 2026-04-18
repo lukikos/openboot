@@ -79,7 +79,7 @@ func runDelete(slug string, force bool) error {
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusNoContent:

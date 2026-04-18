@@ -12,18 +12,18 @@ import (
 
 // MacOSSelectorModel is a bubbletea model for selecting macOS preferences by category.
 type MacOSSelectorModel struct {
-	categories      []macos.PrefCategory
-	selected        map[string]bool // key: macos.PrefKey(pref)
-	activeTab       int
-	cursor          int
-	scrollOffset    int
-	cursorPositions map[int]int
+	categories       []macos.PrefCategory
+	selected         map[string]bool // key: macos.PrefKey(pref)
+	activeTab        int
+	cursor           int
+	scrollOffset     int
+	cursorPositions  map[int]int
 	showConfirmation bool
-	confirmed       bool
-	toastMessage    string
-	toastIsAdd      bool
-	width           int
-	height          int
+	confirmed        bool
+	toastMessage     string
+	toastIsAdd       bool
+	width            int
+	height           int
 }
 
 func NewMacOSSelector() MacOSSelectorModel {
@@ -432,4 +432,3 @@ func RunMacOSSelector() ([]macos.Preference, bool, error) {
 	}
 	return m.SelectedPreferences(), m.Confirmed(), nil
 }
-

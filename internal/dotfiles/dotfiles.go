@@ -284,7 +284,7 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 
 		// Remove Oh-My-Zsh leftover that also blocks the zsh package.
 		if pkg == "zsh" {
-			os.Remove(filepath.Join(home, ".zshrc.pre-oh-my-zsh"))
+			os.Remove(filepath.Join(home, ".zshrc.pre-oh-my-zsh")) //nolint:errcheck // best-effort removal; file may not exist
 		}
 
 		cmd := exec.Command("stow", "-v", "-t", home, pkg)

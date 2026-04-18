@@ -96,10 +96,10 @@ func TestPackageSnapshot_MarshalJSON_AlwaysPlainStrings(t *testing.T) {
 	// MarshalJSON always outputs plain string arrays (canonical format).
 	// Descriptions are runtime-only and not serialised.
 	ps := PackageSnapshot{
-		Formulae:     []string{"git", "curl"},
-		Casks:        []string{"docker"},
-		Taps:         []string{"homebrew/core"},
-		Npm:          []string{"typescript"},
+		Formulae: []string{"git", "curl"},
+		Casks:    []string{"docker"},
+		Taps:     []string{"homebrew/core"},
+		Npm:      []string{"typescript"},
 		Descriptions: map[string]string{
 			"git":        "Version control system",
 			"curl":       "Transfer data with URLs",

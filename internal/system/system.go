@@ -71,7 +71,7 @@ func InstallHomebrew() error {
 	cmd.Stderr = os.Stderr
 	tty, opened := OpenTTY()
 	if opened {
-		defer tty.Close()
+		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
 	}
 	cmd.Stdin = tty
 	return cmd.Run()
@@ -83,13 +83,13 @@ func GetGitConfig(key string) string {
 	if err == nil && output != "" {
 		return output
 	}
-	
+
 	// Fall back to any available config (local, system, etc.)
 	output, err = RunCommandSilent("git", "config", key)
 	if err == nil {
 		return output
 	}
-	
+
 	return ""
 }
 
@@ -114,7 +114,7 @@ func HasTTY() bool {
 	if err != nil {
 		return false
 	}
-	f.Close()
+	f.Close() //nolint:errcheck // probe-only open; close error is non-critical
 	return true
 }
 

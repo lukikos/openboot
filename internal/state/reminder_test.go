@@ -183,7 +183,7 @@ func TestLoadState_ReadError(t *testing.T) {
 
 	require.NoError(t, os.Chmod(tmpDir, 0000))
 	t.Cleanup(func() {
-		os.Chmod(tmpDir, 0755)
+		os.Chmod(tmpDir, 0755) //nolint:errcheck // cleanup restore; failure is non-critical in tests
 	})
 
 	state, err := LoadState(statePath)

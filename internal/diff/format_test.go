@@ -36,8 +36,8 @@ func TestFormatJSON_Structure(t *testing.T) {
 	// Check summary values
 	summary := parsed["summary"].(map[string]interface{})
 	assert.Equal(t, float64(2), summary["missing"]) // ripgrep + slack
-	assert.Equal(t, float64(1), summary["extra"])    // wget
-	assert.Equal(t, float64(1), summary["changed"])  // 1 macOS pref
+	assert.Equal(t, float64(1), summary["extra"])   // wget
+	assert.Equal(t, float64(1), summary["changed"]) // 1 macOS pref
 }
 
 func TestFormatJSON_NilSections(t *testing.T) {

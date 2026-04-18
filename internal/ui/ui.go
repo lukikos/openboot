@@ -11,12 +11,11 @@ import (
 )
 
 var (
-	accent    = lipgloss.Color("#22c55e")
-	subtle    = lipgloss.Color("#666666")
-	highlight = lipgloss.Color("#60a5fa")
-	warning   = lipgloss.Color("#eab308")
-	danger    = lipgloss.Color("#ef4444")
-	info      = lipgloss.Color("#06b6d4")
+	accent  = lipgloss.Color("#22c55e")
+	subtle  = lipgloss.Color("#666666")
+	warning = lipgloss.Color("#eab308")
+	danger  = lipgloss.Color("#ef4444")
+	info    = lipgloss.Color("#06b6d4")
 
 	titleStyle = lipgloss.NewStyle().
 			Foreground(accent).
@@ -108,9 +107,9 @@ func PrintScriptPreview(script string) {
 
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "#") {
-			sb.WriteString(fmt.Sprintf("%s  %s", num, commentStyle.Render(display)))
+			fmt.Fprintf(&sb, "%s  %s", num, commentStyle.Render(display))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s  %s", num, display))
+			fmt.Fprintf(&sb, "%s  %s", num, display)
 		}
 		if i < len(lines)-1 {
 			sb.WriteString("\n")
@@ -174,7 +173,7 @@ func SelectPreset() (string, error) {
 }
 
 func Confirm(question string, defaultVal bool) (bool, error) {
-	var result bool = defaultVal
+	result := defaultVal
 
 	form := huh.NewForm(
 		huh.NewGroup(

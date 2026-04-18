@@ -52,7 +52,7 @@ func queryAPI(endpoint, query string) ([]config.Package, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s search: %w", endpoint, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("%s search: server returned %d", endpoint, resp.StatusCode)

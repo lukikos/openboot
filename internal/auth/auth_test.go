@@ -267,7 +267,7 @@ func TestDeleteToken_PermissionError(t *testing.T) {
 
 	require.NoError(t, os.Chmod(authDir, 0500))
 	t.Cleanup(func() {
-		os.Chmod(authDir, 0700)
+		os.Chmod(authDir, 0700) //nolint:errcheck // cleanup restore; failure is non-critical in tests
 	})
 
 	t.Setenv("HOME", tmpDir)
@@ -386,7 +386,7 @@ func TestLoadToken_ReadPermissionError(t *testing.T) {
 	require.NoError(t, os.WriteFile(authFile, []byte("{}"), 0000))
 
 	t.Cleanup(func() {
-		os.Chmod(authFile, 0600)
+		os.Chmod(authFile, 0600) //nolint:errcheck // cleanup restore; failure is non-critical in tests
 	})
 
 	t.Setenv("HOME", tmpDir)

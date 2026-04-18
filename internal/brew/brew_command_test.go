@@ -239,4 +239,3 @@ func TestDoctorDiagnose_UnknownWarnings(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, suggestions, "Run: brew doctor (to see full diagnostic output)")
 }
-

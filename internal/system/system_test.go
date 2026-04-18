@@ -212,7 +212,7 @@ func TestOpenTTY_SequentialCaskSimulation(t *testing.T) {
 	cmd1 := exec.Command("test", "-t", "0")
 	cmd1.Stdin = tty1
 	require.NoError(t, cmd1.Run())
-	tty1.Close() // defer pattern in real code
+	tty1.Close() //nolint:errcheck // test cleanup
 
 	// Simulate retry — must still work.
 	tty2, opened2 := OpenTTY()
@@ -312,8 +312,7 @@ func TestGetGitConfig_FallsBackToAnyScope(t *testing.T) {
 
 	// Create a temporary git config file
 	gitConfigDir := tmpDir + "/.config/git"
-	os.MkdirAll(gitConfigDir, 0755)
-	
+	os.MkdirAll(gitConfigDir, 0755) //nolint:errcheck // test setup; failure causes predictable test behavior
 	// Test that GetGitConfig returns empty when nothing is set
 	value := GetGitConfig("user.testkey")
 	// If git is not installed or no config exists, should return empty

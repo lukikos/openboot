@@ -213,6 +213,10 @@ func applyInstallSource(src *installSource) error {
 	case sourcePreset:
 		// cfg.Preset is already set (by flag or resolvePositionalArg).
 		return nil
+
+	case sourceSyncSource:
+		// sourceSyncSource is handled by runSyncInstall, not this function.
+		return nil
 	}
 	return nil
 }

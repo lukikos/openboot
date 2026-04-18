@@ -45,7 +45,7 @@ func TestRunList_Empty(t *testing.T) {
 	setupTestAuth(t, true)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}})
+		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}}) //nolint:errcheck // test helper
 	}))
 	defer server.Close()
 

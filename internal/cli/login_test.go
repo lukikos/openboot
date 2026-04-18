@@ -110,7 +110,7 @@ func TestLogoutCmd_DeleteError(t *testing.T) {
 	authDir := filepath.Join(tmpDir, ".openboot")
 
 	require.NoError(t, os.Chmod(authDir, 0500))
-	defer os.Chmod(authDir, 0700)
+	defer os.Chmod(authDir, 0700) //nolint:errcheck // cleanup restore; failure is non-critical in tests
 
 	cmd := &cobra.Command{}
 	err := logoutCmd.RunE(cmd, []string{})

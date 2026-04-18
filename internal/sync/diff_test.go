@@ -225,4 +225,3 @@ func TestGetLocalDotfilesURL(t *testing.T) {
 		assert.Equal(t, "", url)
 	})
 }
-

@@ -146,7 +146,7 @@ func stepDotfiles(opts *config.InstallOptions, st *config.InstallState) error {
 		}
 
 		// Only prompt interactively if no URL is already configured.
-		if dotfilesURL == "" && !opts.Silent && !(opts.DryRun && !system.HasTTY()) {
+		if dotfilesURL == "" && !opts.Silent && (!opts.DryRun || system.HasTTY()) {
 			setup, err := ui.Confirm("Do you have your own dotfiles repository?", false)
 			if err != nil {
 				return err

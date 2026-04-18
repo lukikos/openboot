@@ -13,7 +13,7 @@ func main() {
 	// or exits without proper cleanup (e.g., when invoked via curl|bash).
 	if fd := int(os.Stdin.Fd()); term.IsTerminal(fd) {
 		if oldState, err := term.GetState(fd); err == nil {
-			defer term.Restore(fd, oldState)
+			defer term.Restore(fd, oldState) //nolint:errcheck // best-effort terminal restore on exit
 		}
 	}
 

@@ -759,7 +759,7 @@ func (m SelectorModel) confirmationView() string {
 
 	content.WriteString(headerStyle.Render("Install Summary"))
 	content.WriteString("\n\n")
-	content.WriteString(fmt.Sprintf("Total: %d packages\n\n", totalPackages))
+	fmt.Fprintf(&content, "Total: %d packages\n\n", totalPackages)
 
 	if len(formulae) > 0 {
 		content.WriteString(sectionStyle.Render(fmt.Sprintf("⚙  Formulae (%d)", len(formulae))))
@@ -797,7 +797,7 @@ func (m SelectorModel) confirmationView() string {
 		content.WriteString("\n\n")
 	}
 
-	content.WriteString(fmt.Sprintf("Estimated time: ~%d minutes\n\n", estimatedMinutes))
+	fmt.Fprintf(&content, "Estimated time: ~%d minutes\n\n", estimatedMinutes)
 	content.WriteString(instructionStyle.Render("[Enter] Confirm & Install"))
 	content.WriteString("\n")
 	content.WriteString(instructionStyle.Render("[Esc] Go Back"))

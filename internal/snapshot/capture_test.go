@@ -178,7 +178,6 @@ func TestSanitizePath(t *testing.T) {
 	}
 }
 
-
 func TestCaptureWithProgress_HealthTracksFailedSteps(t *testing.T) {
 	steps := []captureStep{
 		{

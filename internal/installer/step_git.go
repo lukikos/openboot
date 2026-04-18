@@ -20,7 +20,9 @@ func applyGitConfig(plan InstallPlan, r Reporter) error {
 	}
 
 	if plan.GitName == "" || plan.GitEmail == "" {
-		return fmt.Errorf("git name and email are required")
+		r.Muted("Git identity not available in snapshot, skipping")
+		fmt.Println()
+		return nil
 	}
 
 	if plan.DryRun {
@@ -90,4 +92,3 @@ func stepGitConfig(opts *config.InstallOptions, st *config.InstallState) error {
 	fmt.Println()
 	return nil
 }
-

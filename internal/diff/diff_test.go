@@ -187,9 +187,9 @@ func TestDiffResult_Totals_WithDevTools(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, 2, r.TotalMissing())  // rust + macOS missing
-	assert.Equal(t, 2, r.TotalExtra())    // python + macOS extra
-	assert.Equal(t, 1, r.TotalChanged())  // go version change
+	assert.Equal(t, 2, r.TotalMissing()) // rust + macOS missing
+	assert.Equal(t, 2, r.TotalExtra())   // python + macOS extra
+	assert.Equal(t, 1, r.TotalChanged()) // go version change
 	assert.True(t, r.HasChanges())
 }
 

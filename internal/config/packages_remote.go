@@ -80,7 +80,7 @@ func fetchRemotePackages() ([]remotePackage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch packages: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("fetch packages: status %d", resp.StatusCode)

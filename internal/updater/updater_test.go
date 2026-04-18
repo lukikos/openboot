@@ -414,7 +414,7 @@ func TestDoBrewUpgrade_Success(t *testing.T) {
 	assert.Equal(t, brewFormula, calledWith)
 	assert.True(t, restarted, "should re-exec after successful upgrade")
 	assert.Equal(t, "1", os.Getenv("OPENBOOT_UPGRADING"), "should set OPENBOOT_UPGRADING before re-exec")
-	os.Unsetenv("OPENBOOT_UPGRADING")
+	os.Unsetenv("OPENBOOT_UPGRADING") //nolint:errcheck // test cleanup; failure is non-critical
 }
 
 func TestDoBrewUpgrade_Failure(t *testing.T) {

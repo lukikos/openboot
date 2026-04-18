@@ -402,7 +402,7 @@ func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
 	cmd := brewInstallCmd("install", "--cask", pkg)
 	tty, opened := system.OpenTTY()
 	if opened {
-		defer tty.Close()
+		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
 	}
 	cmd.Stdin = tty
 	cmd.Stdout = os.Stdout
@@ -415,15 +415,6 @@ func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
 		return "install failed"
 	}
 	return ""
-}
-
-func printBrewOutput(output string, progress *ui.StickyProgress) {
-	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			progress.PrintLine("    %s", line)
-		}
-	}
 }
 
 func brewInstallCmd(args ...string) *exec.Cmd {
@@ -440,7 +431,7 @@ func brewCombinedOutputWithTTY(args ...string) (string, error) {
 	tty, opened := system.OpenTTY()
 	if opened {
 		cmd.Stdin = tty
-		defer tty.Close()
+		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
 	}
 	output, err := cmd.CombinedOutput()
 	return string(output), err
@@ -747,7 +738,7 @@ func Update(dryRun bool) error {
 	cmd.Stderr = os.Stderr
 	tty, opened := system.OpenTTY()
 	if opened {
-		defer tty.Close()
+		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
 	}
 	cmd.Stdin = tty
 	return cmd.Run()

@@ -163,7 +163,6 @@ func stepPackageCustomization(opts *config.InstallOptions, st *config.InstallSta
 	return nil
 }
 
-
 func applyPackages(plan InstallPlan, r Reporter) error {
 	r.Header("Step 4: Installation")
 	fmt.Println()
@@ -335,4 +334,3 @@ func applyNpm(plan InstallPlan, r Reporter) error {
 	}
 	return lastErr
 }
-

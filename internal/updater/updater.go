@@ -112,7 +112,7 @@ func AutoUpgrade(currentVersion string) {
 	// Guard against infinite re-exec: after an upgrade, execSelf sets this
 	// env var so the new process skips AutoUpgrade on the first run.
 	if os.Getenv("OPENBOOT_UPGRADING") == "1" {
-		os.Unsetenv("OPENBOOT_UPGRADING")
+		os.Unsetenv("OPENBOOT_UPGRADING") //nolint:errcheck // best-effort env cleanup; failure is non-critical
 		return
 	}
 	if currentVersion == "dev" {
@@ -207,7 +207,7 @@ func doBrewUpgrade(currentVersion, latestVersion string) {
 
 	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
 	fmt.Println()
-	os.Setenv("OPENBOOT_UPGRADING", "1")
+	os.Setenv("OPENBOOT_UPGRADING", "1") //nolint:errcheck // non-critical guard env var; failure leaves upgrade loop protection off
 	execSelf()
 }
 
@@ -223,7 +223,7 @@ func doDirectUpgrade(currentVersion, latestVersion string) {
 	}
 	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
 	fmt.Println()
-	os.Setenv("OPENBOOT_UPGRADING", "1")
+	os.Setenv("OPENBOOT_UPGRADING", "1") //nolint:errcheck // non-critical guard env var; failure leaves upgrade loop protection off
 	execSelf()
 }
 
@@ -294,7 +294,7 @@ func verifyChecksum(path, filename string, checksums map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("open %s for checksum: %w", path, err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // read-only file; close error is non-critical
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
@@ -316,7 +316,7 @@ func fetchChecksums(client *http.Client) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("download checksums: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download checksums: HTTP %d", resp.StatusCode)
 	}
@@ -354,7 +354,7 @@ func DownloadAndReplace() error {
 	if err != nil {
 		return fmt.Errorf("download failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
@@ -386,10 +386,12 @@ func DownloadAndReplace() error {
 	}()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		f.Close()
+		f.Close() //nolint:errcheck // already returning a more descriptive error
 		return fmt.Errorf("write binary: %w", err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close temp file: %w", err)
+	}
 
 	// Verify checksum BEFORE chmod/rename so a tampered or truncated download
 	// never replaces the running binary.
@@ -481,7 +483,7 @@ func GetLatestVersion() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)

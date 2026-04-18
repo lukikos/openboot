@@ -13,12 +13,12 @@ import (
 
 func TestTruncateLine(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         string
-		maxWidth      int
-		wantLen       int // visual width of result
-		wantSuffix    string
-		wantPassthru  bool
+		name         string
+		input        string
+		maxWidth     int
+		wantLen      int // visual width of result
+		wantSuffix   string
+		wantPassthru bool
 	}{
 		{"within limit", "hello", 20, 5, "", true},
 		{"exact limit", "hello", 5, 5, "", true},
@@ -46,10 +46,10 @@ func TestTruncateLine(t *testing.T) {
 
 func TestPadLine(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		width    int
-		wantLen  int
+		name    string
+		input   string
+		width   int
+		wantLen int
 	}{
 		{"pads short line", "hi", 10, 10},
 		{"no padding needed", "hello world", 5, 11}, // already wider, returned as-is

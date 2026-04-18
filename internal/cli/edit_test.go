@@ -38,7 +38,7 @@ func TestRunEdit_NoConfigs_ReturnsError(t *testing.T) {
 	setupTestAuth(t, true)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}})
+		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}}) //nolint:errcheck // test helper
 	}))
 	defer server.Close()
 
@@ -52,7 +52,7 @@ func TestRunEdit_NoConfigs_ReturnsError(t *testing.T) {
 
 func TestPickConfig_NoConfigs_ReturnsError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}})
+		json.NewEncoder(w).Encode(map[string]any{"configs": []any{}}) //nolint:errcheck // test helper
 	}))
 	defer server.Close()
 

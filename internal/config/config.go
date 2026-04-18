@@ -248,16 +248,16 @@ func (p PackageEntryList) DescMap() map[string]string {
 }
 
 type RemoteConfig struct {
-	Username     string           `json:"username"`
-	Slug         string           `json:"slug"`
-	Name         string           `json:"name"`
-	Preset       string           `json:"preset"`
-	Packages     PackageEntryList `json:"packages"`
-	Casks        PackageEntryList `json:"casks"`
-	Taps         []string         `json:"taps"`
-	Npm          PackageEntryList `json:"npm"`
-	DotfilesRepo string           `json:"dotfiles_repo"`
-	PostInstall  []string         `json:"post_install"`
+	Username     string             `json:"username"`
+	Slug         string             `json:"slug"`
+	Name         string             `json:"name"`
+	Preset       string             `json:"preset"`
+	Packages     PackageEntryList   `json:"packages"`
+	Casks        PackageEntryList   `json:"casks"`
+	Taps         []string           `json:"taps"`
+	Npm          PackageEntryList   `json:"npm"`
+	DotfilesRepo string             `json:"dotfiles_repo"`
+	PostInstall  []string           `json:"post_install"`
 	Shell        *RemoteShellConfig `json:"shell"`
 	MacOSPrefs   []RemoteMacOSPref  `json:"macos_prefs"`
 }
@@ -563,7 +563,7 @@ func fetchConfigBySlug(apiBase, username, slug, token string) (*http.Response, e
 }
 
 func parseConfigResponse(resp *http.Response, username, slug, token string) (*RemoteConfig, error) {
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 	checkUpgradeHint(resp)
 
 	if resp.StatusCode == 403 {
@@ -721,7 +721,7 @@ func fetchConfigByAlias(apiBase, alias, token string) (*RemoteConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch alias: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("alias not found: %s", alias)

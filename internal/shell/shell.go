@@ -112,7 +112,7 @@ func SetDefaultShell(dryRun bool) error {
 	cmd.Stderr = os.Stderr
 	tty, opened := system.OpenTTY()
 	if opened {
-		defer tty.Close()
+		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
 	}
 	cmd.Stdin = tty
 	return cmd.Run()
@@ -136,10 +136,10 @@ func buildRestoreBlock(theme string, plugins []string) (string, error) {
 	var sb strings.Builder
 	sb.WriteString(restoreBlockStart + "\n")
 	if theme != "" {
-		sb.WriteString(fmt.Sprintf("ZSH_THEME=\"%s\"\n", theme))
+		fmt.Fprintf(&sb, "ZSH_THEME=\"%s\"\n", theme)
 	}
 	if len(plugins) > 0 {
-		sb.WriteString(fmt.Sprintf("plugins=(%s)\n", strings.Join(plugins, " ")))
+		fmt.Fprintf(&sb, "plugins=(%s)\n", strings.Join(plugins, " "))
 	}
 	sb.WriteString(restoreBlockEnd + "\n")
 	return sb.String(), nil

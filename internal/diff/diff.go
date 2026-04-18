@@ -53,8 +53,8 @@ type MacOSPrefEntry struct {
 
 // DevToolDiff holds dev tool differences.
 type DevToolDiff struct {
-	Missing []string      // in reference but not in system (by name)
-	Extra   []string      // in system but not in reference
+	Missing []string       // in reference but not in system (by name)
+	Extra   []string       // in system but not in reference
 	Changed []DevToolDelta // same name, different version
 	Common  int
 }

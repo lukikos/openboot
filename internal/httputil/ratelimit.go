@@ -79,7 +79,7 @@ func Do(client *http.Client, req *http.Request) (*http.Response, error) {
 	)
 
 	// Close the first response body before retrying.
-	resp.Body.Close()
+	resp.Body.Close() //nolint:errcheck // best-effort body close before retry
 
 	// Reset the request body for the retry if present.
 	if req.GetBody != nil {
@@ -98,7 +98,7 @@ func Do(client *http.Client, req *http.Request) (*http.Response, error) {
 	}
 
 	if retryResp.StatusCode == http.StatusTooManyRequests {
-		retryResp.Body.Close()
+		retryResp.Body.Close() //nolint:errcheck // best-effort body close before error return
 		retrySec := parseRetryAfter(retryResp)
 		if retrySec == 0 {
 			retrySec = retryAfterSec

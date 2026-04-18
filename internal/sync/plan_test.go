@@ -37,7 +37,7 @@ func TestSyncPlanEmptySlices(t *testing.T) {
 		UninstallCasks:    []string{},
 		UninstallNpm:      []string{},
 		UninstallTaps:     []string{},
-		UpdateMacOSPrefs: []config.RemoteMacOSPref{},
+		UpdateMacOSPrefs:  []config.RemoteMacOSPref{},
 	}
 
 	assert.True(t, plan.IsEmpty())

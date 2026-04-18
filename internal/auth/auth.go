@@ -87,4 +87,3 @@ func IsAuthenticated() bool {
 	auth, err := LoadToken()
 	return err == nil && auth != nil
 }
-

@@ -1,13 +1,11 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
-	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/openbootdotdev/openboot/internal/updater"
 	"github.com/spf13/cobra"
 )
@@ -87,27 +85,8 @@ shell configuration, and macOS preferences.`,
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg.Version = version
-
-		if fromFile, _ := cmd.Flags().GetString("from"); fromFile != "" {
-			rc, err := config.LoadRemoteConfigFromFile(fromFile)
-			if err != nil {
-				return fmt.Errorf("load config from file: %w", err)
-			}
-			cfg.RemoteConfig = rc
-			if cfg.Preset == "" {
-				cfg.Preset = rc.Preset
-			}
-		}
-
-		err := installer.Run(cfg)
-		if errors.Is(err, installer.ErrUserCancelled) {
-			return nil
-		}
-		if err == nil {
-			saveSyncSourceIfRemote(cfg)
-		}
-		return err
+		// `openboot` (no subcommand) is equivalent to `openboot install`.
+		return runInstallCmd(cmd, args)
 	},
 }
 

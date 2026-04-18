@@ -34,21 +34,19 @@ func updateSyncedAt(source *syncpkg.SyncSource, override string, rc *config.Remo
 	}
 }
 
-// printSyncDiff renders a human-readable summary of the differences between
-// the local system and a remote config. Used by `install` (--dry-run and
-// before confirmation) to show what will change.
-func printSyncDiff(d *syncpkg.SyncDiff) {
-	hasPkgChanges := len(d.MissingFormulae) > 0 || len(d.MissingCasks) > 0 ||
-		len(d.MissingNpm) > 0 || len(d.MissingTaps) > 0 ||
-		len(d.ExtraFormulae) > 0 || len(d.ExtraCasks) > 0 ||
-		len(d.ExtraNpm) > 0 || len(d.ExtraTaps) > 0
+// printInstallDiff renders what will be added/changed on this system if we
+// apply the remote config. Extras (local packages not in the config) are
+// deliberately not shown — install is additive and does not care about them.
+func printInstallDiff(d *syncpkg.SyncDiff) {
+	hasPkgAdditions := len(d.MissingFormulae) > 0 || len(d.MissingCasks) > 0 ||
+		len(d.MissingNpm) > 0 || len(d.MissingTaps) > 0
 
-	if hasPkgChanges {
-		fmt.Printf("  %s\n", ui.Green("Package Changes"))
-		printMissingExtra("Formulae", d.MissingFormulae, d.ExtraFormulae)
-		printMissingExtra("Casks", d.MissingCasks, d.ExtraCasks)
-		printMissingExtra("NPM", d.MissingNpm, d.ExtraNpm)
-		printMissingExtra("Taps", d.MissingTaps, d.ExtraTaps)
+	if hasPkgAdditions {
+		fmt.Printf("  %s\n", ui.Green("Packages to install"))
+		printMissing("Formulae", d.MissingFormulae)
+		printMissing("Casks", d.MissingCasks)
+		printMissing("NPM", d.MissingNpm)
+		printMissing("Taps", d.MissingTaps)
 		fmt.Println()
 	}
 
@@ -85,19 +83,108 @@ func printSyncDiff(d *syncpkg.SyncDiff) {
 
 	if d.DotfilesChanged {
 		fmt.Printf("  %s\n", ui.Green("Dotfiles"))
-		fmt.Printf("    Repo changed: %s %s %s\n", d.LocalDotfiles, ui.Yellow("→"), d.RemoteDotfiles)
+		fmt.Printf("    Repo: %s %s %s\n", fallbackStr(d.LocalDotfiles, "(none)"), ui.Yellow("→"), d.RemoteDotfiles)
 		fmt.Println()
 	}
 }
 
-func printMissingExtra(category string, missing, extra []string) {
-	if len(missing) == 0 && len(extra) == 0 {
+func printMissing(category string, missing []string) {
+	if len(missing) == 0 {
 		return
 	}
-	if len(missing) > 0 {
-		fmt.Printf("    %s to install (%d): %s\n", category, len(missing), strings.Join(missing, ", "))
+	fmt.Printf("    %s (%d): %s\n", category, len(missing), strings.Join(missing, ", "))
+}
+
+func fallbackStr(s, def string) string {
+	if s == "" {
+		return def
 	}
-	if len(extra) > 0 {
-		fmt.Printf("    %s extra (%d): %s\n", category, len(extra), strings.Join(extra, ", "))
+	return s
+}
+
+// buildInstallPlan converts a diff into a plan that only installs missing items.
+// Uninstall fields are never populated — install is additive.
+func buildInstallPlan(d *syncpkg.SyncDiff, rc *config.RemoteConfig) *syncpkg.SyncPlan {
+	plan := &syncpkg.SyncPlan{
+		InstallFormulae: d.MissingFormulae,
+		InstallCasks:    d.MissingCasks,
+		InstallNpm:      d.MissingNpm,
+		InstallTaps:     d.MissingTaps,
 	}
+
+	if d.Shell != nil && rc.Shell != nil {
+		plan.UpdateShell = true
+		plan.ShellOhMyZsh = rc.Shell.OhMyZsh
+		plan.ShellTheme = rc.Shell.Theme
+		plan.ShellPlugins = rc.Shell.Plugins
+	}
+
+	if d.DotfilesChanged {
+		plan.UpdateDotfiles = d.RemoteDotfiles
+	}
+
+	if len(d.MacOSChanged) > 0 {
+		for _, p := range d.MacOSChanged {
+			plan.UpdateMacOSPrefs = append(plan.UpdateMacOSPrefs, config.RemoteMacOSPref{
+				Domain: p.Domain,
+				Key:    p.Key,
+				Type:   p.Type,
+				Value:  p.RemoteValue,
+				Desc:   p.Desc,
+			})
+		}
+	}
+
+	return plan
+}
+
+// sourceLabel returns a human-readable label for a sync source, preferring
+// @username/slug form when available.
+func sourceLabel(source *syncpkg.SyncSource) string {
+	if source.Username != "" && source.Slug != "" {
+		return fmt.Sprintf("@%s/%s", source.Username, source.Slug)
+	}
+	return source.UserSlug
+}
+
+// sourceLabelForConfig builds the label from a RemoteConfig when the sync source
+// doesn't have username/slug cached yet (first sync).
+func sourceLabelForConfig(rc *config.RemoteConfig) string {
+	if rc.Username != "" && rc.Slug != "" {
+		return fmt.Sprintf("@%s/%s", rc.Username, rc.Slug)
+	}
+	return ""
+}
+
+// relativeTime returns a human-friendly relative time string.
+func relativeTime(d time.Duration) string {
+	if d < time.Hour {
+		return "just now"
+	}
+	if d < 24*time.Hour {
+		h := int(d.Hours())
+		if h == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", h)
+	}
+	if d < 30*24*time.Hour {
+		days := int(d.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+	if d < 365*24*time.Hour {
+		months := int(d.Hours() / 24 / 30)
+		if months == 1 {
+			return "1 month ago"
+		}
+		return fmt.Sprintf("%d months ago", months)
+	}
+	years := int(d.Hours() / 24 / 365)
+	if years == 1 {
+		return "1 year ago"
+	}
+	return fmt.Sprintf("%d years ago", years)
 }

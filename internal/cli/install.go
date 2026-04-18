@@ -3,71 +3,50 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
+	"time"
 
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/installer"
+	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
+	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/openbootdotdev/openboot/internal/updater"
 	"github.com/spf13/cobra"
 )
 
 var installCmd = &cobra.Command{
-	Use:   "install [alias or username/slug]",
+	Use:   "install [source]",
 	Short: "Set up your Mac dev environment",
 	Long: `Install and configure your Mac development environment.
 
-You can provide an alias or username/slug to install from an openboot.dev config,
-or run it interactively without arguments.
+Source resolution (position argument, in order):
+  1. ./path, /path, or *.json  → local file
+  2. user/slug                  → openboot.dev config
+  3. preset name                → built-in preset (minimal, developer, full)
+  4. other word                 → treated as an openboot.dev alias
 
-Resolution order for a single word (e.g. "openboot install myalias"):
-  1. Try as a config alias (set in the dashboard)
-  2. Fall back to username/default config
+With no arguments, resumes from your saved sync source (or interactive if none).
 
-For username/slug format, the config is fetched directly.`,
-	Example: `  # Interactive setup with package selection
+Explicit flags (--from, --user, -p) override the positional argument.`,
+	Example: `  # Resume last sync (or interactive if never synced)
   openboot install
 
-  # Install using a config alias
-  openboot install myalias
+  # Install from a cloud config
+  openboot install alice/dev-setup
 
-  # Install from a specific user config
-  openboot install yourname/my-setup
+  # Install from a local file
+  openboot install ./backup.json
 
-  # Quick setup with a preset
+  # Install a built-in preset
   openboot install -p developer
 
-  # Preview changes without installing
+  # Preview without installing
   openboot install --dry-run`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) > 0 && cfg.User == "" {
-			cfg.User = args[0]
-
-			var token string
-			if stored, err := auth.LoadToken(); err == nil && stored != nil {
-				token = stored.Token
-			}
-			rc, err := config.FetchRemoteConfig(cfg.User, token)
-			if err != nil {
-				return fmt.Errorf("error fetching remote config: %v", err)
-			}
-			cfg.RemoteConfig = rc
-			if cfg.Preset == "" {
-				cfg.Preset = rc.Preset
-			}
-		}
-
-		updater.AutoUpgrade(version)
-		cfg.Version = version
-		err := installer.Run(cfg)
-		if errors.Is(err, installer.ErrUserCancelled) {
-			return nil
-		}
-		if err == nil {
-			saveSyncSourceIfRemote(cfg)
-		}
-		return err
-	},
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
+	RunE:         runInstallCmd,
 }
 
 func init() {
@@ -75,6 +54,7 @@ func init() {
 
 	installCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "use a preset: minimal, developer, full")
 	installCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "install from an alias or openboot.dev/username/slug config")
+	installCmd.Flags().String("from", "", "install from a local config or snapshot JSON file")
 	installCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
 	installCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "preview changes without installing")
 	installCmd.Flags().BoolVar(&cfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
@@ -85,4 +65,250 @@ func init() {
 
 	installCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
 	installCmd.Flags().BoolVar(&cfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
+}
+
+func runInstallCmd(cmd *cobra.Command, args []string) error {
+	// Root's PersistentPreRunE may already have resolved cfg.User via
+	// the --user flag or OPENBOOT_USER env var, fetching the RemoteConfig.
+	// When that happened, skip resolution and go straight to install.
+	if cfg.RemoteConfig == nil {
+		src, err := resolveInstallSource(cmd, args)
+		if err != nil {
+			return err
+		}
+
+		// Sync-source path uses the pull-like diff+confirm flow.
+		if src.kind == sourceSyncSource {
+			return runSyncInstall(src.syncSource)
+		}
+
+		if err := applyInstallSource(src); err != nil {
+			return err
+		}
+	}
+
+	updater.AutoUpgrade(version)
+	cfg.Version = version
+	err := installer.Run(cfg)
+	if errors.Is(err, installer.ErrUserCancelled) {
+		return nil
+	}
+	if err == nil {
+		saveSyncSourceIfRemote(cfg)
+	}
+	return err
+}
+
+// ── Source resolution ─────────────────────────────────────────────────────────
+
+type sourceKind int
+
+const (
+	sourceNone sourceKind = iota // no args, no sync source → interactive wizard
+	sourceSyncSource
+	sourceCloud
+	sourceFile
+	sourcePreset
+)
+
+type installSource struct {
+	kind       sourceKind
+	userSlug   string
+	path       string
+	syncSource *syncpkg.SyncSource
+}
+
+// resolveInstallSource inspects flags and args to determine where to install from.
+// Precedence: --from > --user > -p > positional arg > saved sync source > interactive.
+func resolveInstallSource(cmd *cobra.Command, args []string) (*installSource, error) {
+	if fromFile, _ := cmd.Flags().GetString("from"); fromFile != "" {
+		return &installSource{kind: sourceFile, path: fromFile}, nil
+	}
+	if cfg.User != "" {
+		return &installSource{kind: sourceCloud, userSlug: cfg.User}, nil
+	}
+	if cfg.Preset != "" {
+		return &installSource{kind: sourcePreset}, nil
+	}
+
+	if len(args) > 0 {
+		return resolvePositionalArg(args[0])
+	}
+
+	if source, _ := syncpkg.LoadSource(); source != nil {
+		return &installSource{kind: sourceSyncSource, syncSource: source}, nil
+	}
+
+	return &installSource{kind: sourceNone}, nil
+}
+
+// resolvePositionalArg interprets a position argument by pattern:
+//  1. file-like (./, /, ../, or ends in .json) → local file
+//  2. user/slug format → cloud config
+//  3. plain word → preset if matches built-in, else cloud alias
+func resolvePositionalArg(arg string) (*installSource, error) {
+	if looksLikeFilePath(arg) {
+		return &installSource{kind: sourceFile, path: arg}, nil
+	}
+	if looksLikeUserSlug(arg) {
+		return &installSource{kind: sourceCloud, userSlug: arg}, nil
+	}
+	if _, ok := config.GetPreset(arg); ok {
+		cfg.Preset = arg
+		return &installSource{kind: sourcePreset}, nil
+	}
+	// Fall through: treat as a cloud alias — FetchRemoteConfig's alias
+	// resolver will handle it or return a clear error.
+	return &installSource{kind: sourceCloud, userSlug: arg}, nil
+}
+
+func looksLikeFilePath(s string) bool {
+	if strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../") || strings.HasPrefix(s, "/") {
+		return true
+	}
+	return strings.HasSuffix(s, ".json")
+}
+
+var slugPartRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
+func looksLikeUserSlug(s string) bool {
+	parts := strings.Split(s, "/")
+	if len(parts) != 2 {
+		return false
+	}
+	return slugPartRe.MatchString(parts[0]) && slugPartRe.MatchString(parts[1])
+}
+
+// applyInstallSource loads the chosen source into cfg so installer.Run can use it.
+// Not used for sourceSyncSource (that path has its own flow).
+func applyInstallSource(src *installSource) error {
+	switch src.kind {
+	case sourceNone:
+		return nil
+
+	case sourceCloud:
+		cfg.User = src.userSlug
+		var token string
+		if stored, _ := auth.LoadToken(); stored != nil {
+			token = stored.Token
+		}
+		rc, err := config.FetchRemoteConfig(src.userSlug, token)
+		if err != nil {
+			return fmt.Errorf("fetch remote config: %w", err)
+		}
+		cfg.RemoteConfig = rc
+		if cfg.Preset == "" {
+			cfg.Preset = rc.Preset
+		}
+		return nil
+
+	case sourceFile:
+		rc, err := config.LoadRemoteConfigFromFile(src.path)
+		if err != nil {
+			return fmt.Errorf("load config from file: %w", err)
+		}
+		cfg.RemoteConfig = rc
+		if cfg.Preset == "" {
+			cfg.Preset = rc.Preset
+		}
+		return nil
+
+	case sourcePreset:
+		// cfg.Preset is already set (by flag or resolvePositionalArg).
+		return nil
+	}
+	return nil
+}
+
+// ── Sync-source install flow ──────────────────────────────────────────────────
+
+// runSyncInstall is the flow when `openboot install` is called without args
+// and a sync source exists. It fetches the remote config, shows a diff, and
+// applies only the additions (install is add-only).
+func runSyncInstall(source *syncpkg.SyncSource) error {
+	printSyncSourceHeader(source)
+
+	var token string
+	if stored, _ := auth.LoadToken(); stored != nil {
+		token = stored.Token
+	}
+	rc, err := config.FetchRemoteConfig(source.UserSlug, token)
+	if err != nil {
+		return fmt.Errorf("fetch remote config: %w", err)
+	}
+
+	diff, err := syncpkg.ComputeDiff(rc)
+	if err != nil {
+		return fmt.Errorf("compute diff: %w", err)
+	}
+
+	label := sourceLabel(source)
+	if label == "" {
+		label = sourceLabelForConfig(rc)
+	}
+
+	// Only consider "missing" items — install never uninstalls.
+	missingCount := diff.TotalMissing() + diff.TotalChanged()
+	if missingCount == 0 {
+		ui.Success(fmt.Sprintf("Already up to date with %s.", label))
+		updateSyncedAt(source, "", rc)
+		return nil
+	}
+
+	printInstallDiff(diff)
+
+	if cfg.DryRun {
+		ui.Muted(fmt.Sprintf("Dry run: would apply %d change(s) from %s.", missingCount, label))
+		return nil
+	}
+
+	if !cfg.Silent {
+		confirmed, err := ui.Confirm(fmt.Sprintf("Apply %d change(s) from %s?", missingCount, label), true)
+		if err != nil {
+			return fmt.Errorf("confirm: %w", err)
+		}
+		if !confirmed {
+			ui.Info("Cancelled.")
+			return nil
+		}
+	}
+
+	fmt.Println()
+	plan := buildInstallPlan(diff, rc)
+	result, execErr := syncpkg.Execute(plan, false)
+
+	fmt.Println()
+	if result.Installed > 0 {
+		ui.Success(fmt.Sprintf("Installed %d package(s)", result.Installed))
+	}
+	if result.Updated > 0 {
+		ui.Success(fmt.Sprintf("Updated %d setting(s)", result.Updated))
+	}
+	for _, e := range result.Errors {
+		ui.Error(fmt.Sprintf("Failed: %s", e))
+	}
+
+	if execErr == nil || result.Installed > 0 || result.Updated > 0 {
+		updateSyncedAt(source, "", rc)
+	}
+	return execErr
+}
+
+// printSyncSourceHeader shows the "→ Syncing with X (last synced Y)" line at
+// the top of a sync-source install. Warns in yellow if > 90 days stale.
+func printSyncSourceHeader(source *syncpkg.SyncSource) {
+	label := sourceLabel(source)
+	fmt.Println()
+	if source.SyncedAt.IsZero() {
+		ui.Info(fmt.Sprintf("→ Syncing with %s", label))
+	} else {
+		d := time.Since(source.SyncedAt)
+		rel := relativeTime(d)
+		if d > 90*24*time.Hour {
+			ui.Warn(fmt.Sprintf("→ Syncing with %s  last synced %s", label, rel))
+		} else {
+			ui.Info(fmt.Sprintf("→ Syncing with %s (last synced %s)", label, rel))
+		}
+	}
+	fmt.Println()
 }

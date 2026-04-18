@@ -15,6 +15,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// installCfg holds flag values for the install subcommand.
+// It is separate from the root command's cfg so that each command
+// owns its own config state and does not share mutable globals.
+var installCfg = &config.Config{}
+
 var installCmd = &cobra.Command{
 	Use:   "install [source]",
 	Short: "Set up your Mac dev environment",
@@ -51,32 +56,28 @@ Explicit flags (--from, --user, -p) override the positional argument.`,
 func init() {
 	installCmd.Flags().SortFlags = false
 
-	installCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "use a preset: minimal, developer, full")
-	installCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "install from an alias or openboot.dev/username/slug config")
+	installCmd.Flags().StringVarP(&installCfg.Preset, "preset", "p", "", "use a preset: minimal, developer, full")
+	installCmd.Flags().StringVarP(&installCfg.User, "user", "u", "", "install from an alias or openboot.dev/username/slug config")
 	installCmd.Flags().String("from", "", "install from a local config or snapshot JSON file")
-	installCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
-	installCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "preview changes without installing")
-	installCmd.Flags().BoolVar(&cfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
+	installCmd.Flags().BoolVarP(&installCfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
+	installCmd.Flags().BoolVar(&installCfg.DryRun, "dry-run", false, "preview changes without installing")
+	installCmd.Flags().BoolVar(&installCfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
 
-	installCmd.Flags().StringVar(&cfg.Shell, "shell", "", "shell setup: install, skip")
-	installCmd.Flags().StringVar(&cfg.Macos, "macos", "", "macOS preferences: configure, skip")
-	installCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
+	installCmd.Flags().StringVar(&installCfg.Shell, "shell", "", "shell setup: install, skip")
+	installCmd.Flags().StringVar(&installCfg.Macos, "macos", "", "macOS preferences: configure, skip")
+	installCmd.Flags().StringVar(&installCfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
 
-	installCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
-	installCmd.Flags().BoolVar(&cfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
+	installCmd.Flags().BoolVar(&installCfg.Update, "update", false, "update Homebrew before installing")
+	installCmd.Flags().BoolVar(&installCfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
 }
 
 func runInstallCmd(cmd *cobra.Command, args []string) error {
-	// Root's PersistentPreRunE may already have resolved cfg.User via
-	// the --user flag or OPENBOOT_USER env var, fetching the RemoteConfig.
-	// When that happened, skip resolution and go straight to install.
-	if cfg.RemoteConfig == nil {
+	if installCfg.RemoteConfig == nil {
 		src, err := resolveInstallSource(cmd, args)
 		if err != nil {
 			return err
 		}
 
-		// Sync-source path uses the pull-like diff+confirm flow.
 		if src.kind == sourceSyncSource {
 			return runSyncInstall(src.syncSource)
 		}
@@ -86,12 +87,12 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	err := installer.Run(cfg)
+	err := installer.Run(installCfg)
 	if errors.Is(err, installer.ErrUserCancelled) {
 		return nil
 	}
 	if err == nil {
-		saveSyncSourceIfRemote(cfg)
+		saveSyncSourceIfRemote(installCfg)
 	}
 	return err
 }
@@ -121,10 +122,10 @@ func resolveInstallSource(cmd *cobra.Command, args []string) (*installSource, er
 	if fromFile, _ := cmd.Flags().GetString("from"); fromFile != "" {
 		return &installSource{kind: sourceFile, path: fromFile}, nil
 	}
-	if cfg.User != "" {
-		return &installSource{kind: sourceCloud, userSlug: cfg.User}, nil
+	if installCfg.User != "" {
+		return &installSource{kind: sourceCloud, userSlug: installCfg.User}, nil
 	}
-	if cfg.Preset != "" {
+	if installCfg.Preset != "" {
 		return &installSource{kind: sourcePreset}, nil
 	}
 
@@ -151,7 +152,7 @@ func resolvePositionalArg(arg string) (*installSource, error) {
 		return &installSource{kind: sourceCloud, userSlug: arg}, nil
 	}
 	if _, ok := config.GetPreset(arg); ok {
-		cfg.Preset = arg
+		installCfg.Preset = arg
 		return &installSource{kind: sourcePreset}, nil
 	}
 	// Fall through: treat as a cloud alias — FetchRemoteConfig's alias
@@ -184,7 +185,7 @@ func applyInstallSource(src *installSource) error {
 		return nil
 
 	case sourceCloud:
-		cfg.User = src.userSlug
+		installCfg.User = src.userSlug
 		var token string
 		if stored, _ := auth.LoadToken(); stored != nil {
 			token = stored.Token
@@ -193,9 +194,9 @@ func applyInstallSource(src *installSource) error {
 		if err != nil {
 			return fmt.Errorf("fetch remote config: %w", err)
 		}
-		cfg.RemoteConfig = rc
-		if cfg.Preset == "" {
-			cfg.Preset = rc.Preset
+		installCfg.RemoteConfig = rc
+		if installCfg.Preset == "" {
+			installCfg.Preset = rc.Preset
 		}
 		return nil
 
@@ -204,14 +205,14 @@ func applyInstallSource(src *installSource) error {
 		if err != nil {
 			return fmt.Errorf("load config from file: %w", err)
 		}
-		cfg.RemoteConfig = rc
-		if cfg.Preset == "" {
-			cfg.Preset = rc.Preset
+		installCfg.RemoteConfig = rc
+		if installCfg.Preset == "" {
+			installCfg.Preset = rc.Preset
 		}
 		return nil
 
 	case sourcePreset:
-		// cfg.Preset is already set (by flag or resolvePositionalArg).
+		// installCfg.Preset is already set (by flag or resolvePositionalArg).
 		return nil
 
 	case sourceSyncSource:
@@ -258,12 +259,12 @@ func runSyncInstall(source *syncpkg.SyncSource) error {
 
 	printInstallDiff(diff)
 
-	if cfg.DryRun {
+	if installCfg.DryRun {
 		ui.Muted(fmt.Sprintf("Dry run: would apply %d change(s) from %s.", missingCount, label))
 		return nil
 	}
 
-	if !cfg.Silent {
+	if !installCfg.Silent {
 		confirmed, err := ui.Confirm(fmt.Sprintf("Apply %d change(s) from %s?", missingCount, label), true)
 		if err != nil {
 			return fmt.Errorf("confirm: %w", err)

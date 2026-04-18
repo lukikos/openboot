@@ -702,6 +702,9 @@ func confirmInstallation(edited *snapshot.Snapshot, dryRun bool) (bool, error) {
 		totalFormulae, totalCasks, totalNpm, totalTaps)
 	fmt.Fprintf(os.Stderr, "  %s %d total packages\n", snapBoldStyle.Render("Total:"), totalPkgs)
 	fmt.Fprintln(os.Stderr)
+	if dryRun {
+		return true, nil
+	}
 	return ui.Confirm("Proceed with installation?", false)
 }
 

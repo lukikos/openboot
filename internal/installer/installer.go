@@ -124,21 +124,27 @@ func Apply(plan InstallPlan, r Reporter) error {
 		}
 	}
 
-	showCompletionFromPlan(plan, r)
+	showCompletionFromPlan(plan, r, len(softErrs))
 
 	if len(softErrs) > 0 {
-		fmt.Println()
-		r.Warn(fmt.Sprintf("%d step(s) had errors — check the output above for details.", len(softErrs)))
 		return errors.Join(softErrs...)
 	}
 	return nil
 }
 
-func showCompletionFromPlan(plan InstallPlan, r Reporter) {
+func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
 	fmt.Println()
-	r.Header("Installation Complete!")
+	if errCount > 0 {
+		r.Header("Installation finished with errors")
+	} else {
+		r.Header("Installation Complete!")
+	}
 	fmt.Println()
-	r.Success("OpenBoot has successfully configured your Mac.")
+	if errCount > 0 {
+		r.Warn(fmt.Sprintf("%d step(s) had errors — check the output above for details.", errCount))
+	} else {
+		r.Success("OpenBoot has successfully configured your Mac.")
+	}
 	fmt.Println()
 
 	r.Info("What was installed:")

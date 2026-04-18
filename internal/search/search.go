@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/system"
 )
 
@@ -41,11 +42,21 @@ type searchResponse struct {
 
 func queryAPI(endpoint, query string) ([]config.Package, error) {
 	u := fmt.Sprintf("%s/%s/search?q=%s", getAPIBase(), endpoint, url.QueryEscape(query))
-	resp, err := httpClient.Get(u)
+
+	req, err := http.NewRequest(http.MethodGet, u, nil)
+	if err != nil {
+		return nil, fmt.Errorf("%s search: %w", endpoint, err)
+	}
+
+	resp, err := httputil.Do(httpClient, req)
 	if err != nil {
 		return nil, fmt.Errorf("%s search: %w", endpoint, err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s search: server returned %d", endpoint, resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
+	"github.com/openbootdotdev/openboot/internal/diff"
 	"github.com/openbootdotdev/openboot/internal/npm"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -40,7 +41,7 @@ func (r *CleanResult) TotalFailed() int {
 }
 
 func DiffFromSnapshot(snap *snapshot.Snapshot) (*CleanResult, error) {
-	return diff(
+	return diffDesired(
 		toSet(snap.Packages.Formulae),
 		toSet(snap.Packages.Casks),
 		toSet(snap.Packages.Npm),
@@ -49,10 +50,10 @@ func DiffFromSnapshot(snap *snapshot.Snapshot) (*CleanResult, error) {
 }
 
 func DiffFromLists(formulae, casks, npmPkgs, taps []string) (*CleanResult, error) {
-	return diff(toSet(formulae), toSet(casks), toSet(npmPkgs), toSet(taps))
+	return diffDesired(toSet(formulae), toSet(casks), toSet(npmPkgs), toSet(taps))
 }
 
-func diff(desiredFormulae, desiredCasks, desiredNpm, desiredTaps map[string]bool) (*CleanResult, error) {
+func diffDesired(desiredFormulae, desiredCasks, desiredNpm, desiredTaps map[string]bool) (*CleanResult, error) {
 	result := &CleanResult{}
 
 	// Use brew leaves (top-level only) for formulae to stay consistent with
@@ -172,10 +173,8 @@ func Execute(result *CleanResult, dryRun bool) error {
 	return errors.Join(errs...)
 }
 
+// toSet is a thin wrapper around diff.ToSet, preserved because the existing
+// cleaner_test.go suite exercises it by the package-local name.
 func toSet(items []string) map[string]bool {
-	s := make(map[string]bool, len(items))
-	for _, item := range items {
-		s[item] = true
-	}
-	return s
+	return diff.ToSet(items)
 }

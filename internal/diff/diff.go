@@ -96,8 +96,8 @@ type DiffResult struct {
 // DiffLists computes a bidirectional set diff between system and reference string slices.
 // Both inputs may be nil; duplicates are ignored.
 func DiffLists(system, reference []string) ListDiff {
-	sysSet := toSet(system)
-	refSet := toSet(reference)
+	sysSet := ToSet(system)
+	refSet := ToSet(reference)
 
 	var missing []string
 	var extra []string
@@ -191,10 +191,30 @@ func (r *DiffResult) TotalChanged() int {
 	return n
 }
 
-func toSet(items []string) map[string]bool {
+// ToSet converts a string slice to a set (map[string]bool). Duplicates collapse.
+// Shared helper used by diff, sync, and cleaner for bidirectional set math.
+func ToSet(items []string) map[string]bool {
 	s := make(map[string]bool, len(items))
 	for _, item := range items {
 		s[item] = true
 	}
 	return s
+}
+
+// PluginsEqual reports whether two string lists contain the same elements
+// regardless of order. Duplicates are ignored.
+func PluginsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	set := make(map[string]bool, len(a))
+	for _, p := range a {
+		set[p] = true
+	}
+	for _, p := range b {
+		if !set[p] {
+			return false
+		}
+	}
+	return true
 }

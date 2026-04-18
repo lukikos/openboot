@@ -26,7 +26,7 @@ func CompareSnapshots(system, reference *snapshot.Snapshot, source Source) *Diff
 // The remote API includes casks in the packages list, so we exclude them to get pure formulae.
 func CompareSnapshotToRemote(system *snapshot.Snapshot, remote *config.RemoteConfig, source Source) *DiffResult {
 	// Remote packages list contains both formulae and casks — filter out casks
-	caskSet := toSet(remote.Casks.Names())
+	caskSet := ToSet(remote.Casks.Names())
 	var formulaeOnly []string
 	for _, name := range remote.Packages.Names() {
 		if !caskSet[name] {
@@ -89,7 +89,7 @@ func diffShell(refTheme string, refPlugins []string) *ShellDiff {
 		}
 	}
 
-	if len(refPlugins) > 0 && !pluginsEqual(refPlugins, local.Plugins) {
+	if len(refPlugins) > 0 && !PluginsEqual(refPlugins, local.Plugins) {
 		if sd == nil {
 			sd = &ShellDiff{
 				LocalTheme:       local.Theme,
@@ -102,23 +102,6 @@ func diffShell(refTheme string, refPlugins []string) *ShellDiff {
 	}
 
 	return sd
-}
-
-// pluginsEqual reports whether two plugin lists contain the same elements regardless of order.
-func pluginsEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	set := make(map[string]bool, len(a))
-	for _, p := range a {
-		set[p] = true
-	}
-	for _, p := range b {
-		if !set[p] {
-			return false
-		}
-	}
-	return true
 }
 
 func diffPackages(system, reference *snapshot.Snapshot) PackageDiff {

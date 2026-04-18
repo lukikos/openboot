@@ -5,10 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/diff"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
@@ -118,7 +118,7 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 	}
 
 	// Package diffs — exclude cask names from formulae comparison
-	casksSet := ToSet(rc.Casks.Names())
+	casksSet := diff.ToSet(rc.Casks.Names())
 	remoteFormulae := make([]string, 0, len(rc.Packages))
 	for _, p := range rc.Packages {
 		if !casksSet[p.Name] {
@@ -153,7 +153,7 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 			}
 			sd.ThemeChanged = true
 		}
-		if len(rc.Shell.Plugins) > 0 && !pluginsEqual(rc.Shell.Plugins, localShell.Plugins) {
+		if len(rc.Shell.Plugins) > 0 && !diff.PluginsEqual(rc.Shell.Plugins, localShell.Plugins) {
 			if sd == nil {
 				sd = &ShellDiff{RemoteTheme: rc.Shell.Theme, LocalTheme: localShell.Theme, RemotePlugins: rc.Shell.Plugins, LocalPlugins: localShell.Plugins}
 			}
@@ -196,53 +196,18 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 	return d, nil
 }
 
-// pluginsEqual reports whether two plugin lists contain the same elements
-// regardless of order.
-func pluginsEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	set := make(map[string]bool, len(a))
-	for _, p := range a {
-		set[p] = true
-	}
-	for _, p := range b {
-		if !set[p] {
-			return false
-		}
-	}
-	return true
-}
-
 // diffLists returns (missing, extra) where missing = in remote but not local,
-// extra = in local but not remote.
+// extra = in local but not remote. Thin wrapper around diff.DiffLists that
+// preserves the (missing, extra) tuple shape used throughout this package.
 func diffLists(remote, local []string) (missing, extra []string) {
-	remoteSet := ToSet(remote)
-	localSet := ToSet(local)
-
-	for item := range remoteSet {
-		if !localSet[item] {
-			missing = append(missing, item)
-		}
-	}
-	for item := range localSet {
-		if !remoteSet[item] {
-			extra = append(extra, item)
-		}
-	}
-
-	sort.Strings(missing)
-	sort.Strings(extra)
-	return missing, extra
+	ld := diff.DiffLists(local, remote)
+	return ld.Missing, ld.Extra
 }
 
-// ToSet converts a string slice to a set (map[string]bool).
+// ToSet converts a string slice to a set (map[string]bool). Preserved as a
+// public API; delegates to internal/diff.ToSet.
 func ToSet(items []string) map[string]bool {
-	s := make(map[string]bool, len(items))
-	for _, item := range items {
-		s[item] = true
-	}
-	return s
+	return diff.ToSet(items)
 }
 
 // getLocalDotfilesURL reads the git remote URL from ~/.dotfiles if it exists.

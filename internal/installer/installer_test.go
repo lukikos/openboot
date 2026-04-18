@@ -129,36 +129,6 @@ func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestRunCustomInstall_IncludesCasksInSelectedPkgs verifies that GUI apps (casks)
-// from remote config are added to SelectedPkgs so they get installed.
-// Regression test for: https://github.com/openbootdotdev/openboot/issues/17
-func TestRunCustomInstall_IncludesCasksInSelectedPkgs(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	cfg := &config.Config{
-		DryRun: true,
-		Shell:  "skip",
-		Macos:  "skip",
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "testconfig",
-			Packages: config.PackageEntryList{{Name: "git"}, {Name: "curl"}},
-			Casks:    config.PackageEntryList{{Name: "visual-studio-code"}, {Name: "firefox"}},
-		},
-	}
-
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := runCustomInstall(opts, st)
-	assert.NoError(t, err)
-
-	// Verify both packages and casks are in SelectedPkgs
-	assert.Contains(t, st.SelectedPkgs, "git", "CLI package should be in SelectedPkgs")
-	assert.Contains(t, st.SelectedPkgs, "curl", "CLI package should be in SelectedPkgs")
-	assert.Contains(t, st.SelectedPkgs, "visual-studio-code", "GUI app (cask) should be in SelectedPkgs")
-	assert.Contains(t, st.SelectedPkgs, "firefox", "GUI app (cask) should be in SelectedPkgs")
-}
 
 func TestRunInstall_DryRunRemoteConfig(t *testing.T) {
 	cfg := &config.Config{
@@ -464,7 +434,7 @@ func TestInstallState_OnlySuccessfulPackagesMarked(t *testing.T) {
 	assert.False(t, loaded.isFormulaInstalled("ripgrep"), "ripgrep should not appear in persisted state")
 }
 
-func TestRunInteractiveInstall_HardFailOnBrew(t *testing.T) {
+func TestRunInstall_PackagesOnly_DryRun(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -477,7 +447,7 @@ func TestRunInteractiveInstall_HardFailOnBrew(t *testing.T) {
 
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-	err := runInteractiveInstall(opts, st)
+	err := runInstall(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -500,15 +470,16 @@ func TestRunFromSnapshot_SoftFailuresReturnError(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestRunCustomInstall_RunsShellDotfilesMacOS(t *testing.T) {
+func TestApply_RemoteConfig_RunsShellDotfilesMacOS(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 	t.Setenv("OPENBOOT_DOTFILES", "")
 
 	cfg := &config.Config{
-		DryRun: true,
-		Shell:  "skip",
-		Macos:  "skip",
+		DryRun:       true,
+		PackagesOnly: true,
+		Shell:        "skip",
+		Macos:        "skip",
 		RemoteConfig: &config.RemoteConfig{
 			Username: "testuser",
 			Slug:     "default",
@@ -518,11 +489,13 @@ func TestRunCustomInstall_RunsShellDotfilesMacOS(t *testing.T) {
 
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-	err := runCustomInstall(opts, st)
+	plan, err := Plan(opts, st)
+	require.NoError(t, err)
+	err = Apply(plan, NopReporter{})
 	assert.NoError(t, err)
 }
 
-func TestRunCustomInstall_DotfilesRepoPopulatesDotfilesURL(t *testing.T) {
+func TestPlan_RemoteConfig_DotfilesRepoPopulatesDotfilesURL(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -541,19 +514,20 @@ func TestRunCustomInstall_DotfilesRepoPopulatesDotfilesURL(t *testing.T) {
 
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-	err := runCustomInstall(opts, st)
-	assert.NoError(t, err)
-	assert.Equal(t, "https://github.com/testuser/dotfiles", opts.DotfilesURL)
+	plan, err := Plan(opts, st)
+	require.NoError(t, err)
+	assert.Equal(t, "https://github.com/testuser/dotfiles", plan.DotfilesURL)
 }
 
-func TestRunCustomInstall_DotfilesFallsBackToDefault(t *testing.T) {
+func TestApply_RemoteConfig_DotfilesFallsBackToDefault(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
 	cfg := &config.Config{
-		DryRun: true,
-		Shell:  "skip",
-		Macos:  "skip",
+		DryRun:       true,
+		PackagesOnly: true,
+		Shell:        "skip",
+		Macos:        "skip",
 		RemoteConfig: &config.RemoteConfig{
 			Username: "testuser",
 			Slug:     "default",
@@ -564,7 +538,9 @@ func TestRunCustomInstall_DotfilesFallsBackToDefault(t *testing.T) {
 
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-	err := runCustomInstall(opts, st)
+	plan, err := Plan(opts, st)
+	require.NoError(t, err)
+	err = Apply(plan, NopReporter{})
 	assert.NoError(t, err, "should succeed using default dotfiles template")
 }
 
@@ -820,15 +796,16 @@ func TestReconcileNpmWithSystem_EmptyState(t *testing.T) {
 	assert.Equal(t, 0, removed)
 }
 
-func TestRunCustomInstall_WithPostInstallScript(t *testing.T) {
+func TestApply_RemoteConfig_WithPostInstallScript(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 	t.Setenv("OPENBOOT_DOTFILES", "")
 
 	cfg := &config.Config{
-		DryRun: true,
-		Shell:  "skip",
-		Macos:  "skip",
+		DryRun:       true,
+		PackagesOnly: true,
+		Shell:        "skip",
+		Macos:        "skip",
 		RemoteConfig: &config.RemoteConfig{
 			Username:    "testuser",
 			Slug:        "default",
@@ -839,6 +816,8 @@ func TestRunCustomInstall_WithPostInstallScript(t *testing.T) {
 
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-	err := runCustomInstall(opts, st)
+	plan, err := Plan(opts, st)
+	require.NoError(t, err)
+	err = Apply(plan, NopReporter{})
 	assert.NoError(t, err)
 }

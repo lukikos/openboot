@@ -20,8 +20,8 @@ on:
         default: false
 
 jobs:
-  test:
-    name: test
+  unit:
+    name: unit (L1)
     runs-on: macos-latest
     permissions:
       id-token: write
@@ -38,14 +38,54 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Run all tests
-        run: make test-all
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run unit + contract tests
+        run: make test-coverage
+
+      - name: Upload coverage to Codecov
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: codecov/codecov-action@v4
+        with:
+          use_oidc: true
+          files: ./coverage.out
+          flags: unittests
+          name: openboot-coverage
+          fail_ci_if_error: false
+
+      - name: Upload coverage artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-coverage
+          path: |
+            coverage.out
+            coverage.html
+          retention-days: 7
+
+  integration:
+    name: integration (L2)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run integration tests
+        run: make test-integration
 
       - name: Run destructive tests
         if: ${{ inputs.run_destructive == true }}
         run: make test-destructive
+
+  contract:
+    name: contract schema (L3)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Contract schema validation
         run: |
@@ -73,26 +113,6 @@ jobs:
 
           sys.exit(1 if failed else 0)
           "
-
-      - name: Upload coverage to Codecov
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@v4
-        with:
-          use_oidc: true
-          files: ./coverage.out
-          flags: unittests
-          name: openboot-coverage
-          fail_ci_if_error: false
-
-      - name: Upload coverage artifacts (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-coverage
-          path: |
-            coverage.out
-            coverage.html
-          retention-days: 7
 
   curl-bash-smoke:
     name: curl|bash smoke

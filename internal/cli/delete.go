@@ -6,7 +6,6 @@ import (
 	"net/http"
 	neturl "net/url"
 	"os"
-	"time"
 
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/httputil"
@@ -75,7 +74,7 @@ func runDelete(slug string, force bool) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+stored.Token)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: apiRequestTimeout}
 	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)

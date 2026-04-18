@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -365,7 +364,7 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibili
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: apiRequestTimeout}
 	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return "", fmt.Errorf("upload snapshot: %w", err)
@@ -378,23 +377,7 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibili
 			return "", fmt.Errorf("upload failed (status %d): read response: %w", resp.StatusCode, readErr)
 		}
 		if resp.StatusCode == http.StatusConflict {
-			var errResp struct {
-				Message string `json:"message"`
-				Error   string `json:"error"`
-			}
-			if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil {
-				msg := errResp.Message
-				if msg == "" {
-					msg = errResp.Error
-				}
-				if msg != "" && strings.Contains(strings.ToLower(msg), "maximum") {
-					return "", errors.New("config limit reached (max 20): delete an existing config with 'openboot delete <slug>' first")
-				}
-				if msg != "" {
-					return "", errors.New(msg)
-				}
-			}
-			return "", fmt.Errorf("conflict: %s", string(respBody))
+			return "", parseConflictError(respBody)
 		}
 		return "", fmt.Errorf("upload failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
@@ -633,7 +616,7 @@ func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
 	}
 	if strings.HasPrefix(importPath, "https://") {
 		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
-		client := &http.Client{Timeout: 30 * time.Second}
+		client := &http.Client{Timeout: apiRequestTimeout}
 		req, err := http.NewRequest("GET", importPath, nil)
 		if err != nil {
 			return nil, fmt.Errorf("download snapshot request: %w", err)

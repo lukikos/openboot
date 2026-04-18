@@ -265,7 +265,7 @@ func doUpload(url string, body []byte, token, username, slug string) error {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: apiRequestTimeout}
 	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
@@ -279,23 +279,7 @@ func doUpload(url string, body []byte, token, username, slug string) error {
 		}
 
 		if resp.StatusCode == http.StatusConflict {
-			var errResp struct {
-				Message string `json:"message"`
-				Error   string `json:"error"`
-			}
-			if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil {
-				msg := errResp.Message
-				if msg == "" {
-					msg = errResp.Error
-				}
-				if msg != "" && strings.Contains(strings.ToLower(msg), "maximum") {
-					return errors.New("config limit reached (max 20): delete an existing config with 'openboot delete <slug>' first")
-				}
-				if msg != "" {
-					return errors.New(msg)
-				}
-			}
-			return fmt.Errorf("conflict: %s", string(respBody))
+			return parseConflictError(respBody)
 		}
 
 		return fmt.Errorf("upload failed (status %d): %s", resp.StatusCode, string(respBody))

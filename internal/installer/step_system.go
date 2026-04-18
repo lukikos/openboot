@@ -155,50 +155,6 @@ func stepMacOS(opts *config.InstallOptions, st *config.InstallState) error {
 	return nil
 }
 
-func stepRestoreMacOS(opts *config.InstallOptions, st *config.InstallState) error {
-	ui.Header("Restore: macOS Preferences")
-	fmt.Println()
-
-	if len(st.SnapshotMacOS) == 0 {
-		ui.Muted("No macOS preferences in snapshot, skipping")
-		fmt.Println()
-		return nil
-	}
-
-	prefs := make([]macos.Preference, 0, len(st.SnapshotMacOS))
-	for _, p := range st.SnapshotMacOS {
-		prefType := p.Type
-		if prefType == "" {
-			prefType = macos.InferPreferenceType(p.Value)
-		}
-		prefs = append(prefs, macos.Preference{
-			Domain: p.Domain,
-			Key:    p.Key,
-			Type:   prefType,
-			Value:  p.Value,
-			Desc:   p.Desc,
-		})
-	}
-
-	if opts.DryRun {
-		ui.Info(fmt.Sprintf("[DRY-RUN] Would restore %d macOS preferences from snapshot", len(prefs)))
-		fmt.Println()
-		return nil
-	}
-
-	if err := macos.Configure(prefs, opts.DryRun); err != nil {
-		ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
-	}
-
-	if err := macos.CreateScreenshotsDir(opts.DryRun); err != nil {
-		ui.Warn(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
-	}
-
-	macos.RestartAffectedApps(opts.DryRun)
-	ui.Success(fmt.Sprintf("macOS preferences restored (%d settings)", len(prefs)))
-	fmt.Println()
-	return nil
-}
 
 func stepPostInstall(opts *config.InstallOptions, st *config.InstallState) error {
 	if opts.PostInstall == "skip" {

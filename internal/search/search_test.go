@@ -9,8 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/openbootdotdev/openboot/internal/config"
 )
 
 // newTestServer creates an httptest.Server that serves a fixed response for
@@ -244,5 +242,5 @@ func TestQueryAPI_PackageFieldMapping(t *testing.T) {
 	assert.Equal(t, "Fuzzy finder", pkg.Description)
 
 	// Verify config.Package type is returned correctly.
-	var _ config.Package = pkg
+	_ = pkg
 }

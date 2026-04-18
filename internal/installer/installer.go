@@ -88,7 +88,7 @@ func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
 // Apply executes a resolved InstallPlan, reporting progress via r.
 // All user interaction has already happened in Plan(); this function only performs actions.
 func Apply(plan InstallPlan, r Reporter) error {
-	if !plan.PackagesOnly {
+	if !plan.PackagesOnly && !plan.SkipGit {
 		if err := applyGitConfig(plan, r); err != nil {
 			return err
 		}
@@ -228,60 +228,10 @@ func RunFromSnapshot(cfg *config.Config) error {
 		fmt.Println()
 	}
 
-	if len(st.SnapshotTaps) > 0 {
-		ui.Info(fmt.Sprintf("Adding %d taps...", len(st.SnapshotTaps)))
-		fmt.Println()
-		if err := brew.InstallTaps(st.SnapshotTaps, opts.DryRun); err != nil {
-			ui.Warn(fmt.Sprintf("Some taps failed: %v", err))
-		}
-		fmt.Println()
-	}
-
-	if err := stepInstallPackages(opts, st); err != nil {
-		cfg.ApplyState(st)
-		return err
-	}
-
-	if err := stepInstallNpmWithRetry(opts, st); err != nil {
-		ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
-	}
-
-	var softErrs []error
-
-	if st.SnapshotGit != nil {
-		if err := stepRestoreGit(opts, st); err != nil {
-			ui.Error(fmt.Sprintf("Git restore failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("git restore: %w", err))
-		}
-	}
-
-	if err := stepShell(opts, st); err != nil {
-		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
-		softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
-	}
-
-	if err := stepRestoreMacOS(opts, st); err != nil {
-		ui.Error(fmt.Sprintf("macOS restore failed: %v", err))
-		softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
-	}
-
-	if st.SnapshotDotfiles != "" {
-		if err := stepDotfiles(opts, st); err != nil {
-			ui.Error(fmt.Sprintf("Dotfiles restore failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
-		}
-	}
-
-	showCompletion(opts, st)
-
+	plan := PlanFromSnapshot(opts, st)
+	err := Apply(plan, ConsoleReporter{})
 	cfg.ApplyState(st)
-
-	if len(softErrs) > 0 {
-		fmt.Println()
-		ui.Warn(fmt.Sprintf("%d restore step(s) had errors — check the output above for details.", len(softErrs)))
-		return errors.Join(softErrs...)
-	}
-	return nil
+	return err
 }
 
 func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
@@ -293,7 +243,7 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 	}
 
 	if !opts.DryRun {
-		brew.Cleanup()
+		brew.Cleanup() //nolint:errcheck // best-effort cleanup; failure is non-critical
 	}
 
 	fmt.Println()

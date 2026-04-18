@@ -23,6 +23,7 @@ type InstallPlan struct {
 	// Git
 	GitName  string
 	GitEmail string
+	SkipGit  bool // when true, Apply skips git configuration entirely
 
 	// Packages (fully resolved and categorized)
 	Formulae     []string
@@ -246,7 +247,7 @@ func planDotfilesDecision(opts *config.InstallOptions) (string, error) {
 		return url, nil
 	}
 
-	if !opts.Silent && !(opts.DryRun && !system.HasTTY()) {
+	if !opts.Silent && (!opts.DryRun || system.HasTTY()) {
 		setup, err := ui.Confirm("Do you have your own dotfiles repository?", false)
 		if err != nil {
 			return "", err
@@ -284,4 +285,63 @@ func planMacOSDecision(opts *config.InstallOptions) ([]macos.Preference, error) 
 		return nil, nil
 	}
 	return selected, nil
+}
+
+// PlanFromSnapshot builds an InstallPlan from snapshot state without any interactive
+// prompts. All decisions are derived from st.Snapshot* fields and opts.
+func PlanFromSnapshot(opts *config.InstallOptions, st *config.InstallState) InstallPlan {
+	plan := InstallPlan{
+		Version:          opts.Version,
+		DryRun:           opts.DryRun,
+		Silent:           opts.Silent,
+		PackagesOnly:     opts.PackagesOnly,
+		AllowPostInstall: opts.AllowPostInstall,
+		Taps:             st.SnapshotTaps,
+		SelectedPkgs:     st.SelectedPkgs,
+	}
+
+	// Categorize selected packages into formulae, casks, and npm.
+	cats := categorizeSelectedPackages(opts, st)
+	plan.Formulae = cats.cli
+	plan.Casks = cats.cask
+	plan.Npm = cats.npm
+
+	// Git: restore from snapshot when present; skip entirely when snapshot has no git config.
+	if st.SnapshotGit != nil {
+		plan.GitName = st.SnapshotGit.UserName
+		plan.GitEmail = st.SnapshotGit.UserEmail
+	} else {
+		plan.SkipGit = true
+	}
+
+	// Dotfiles: non-empty snapshot URL means apply, unless explicitly skipped via flag.
+	if opts.Dotfiles != "skip" {
+		plan.DotfilesURL = st.SnapshotDotfiles
+	}
+
+	// Shell: attempt Oh-My-Zsh for snapshot restores unless explicitly skipped.
+	if opts.Shell != "skip" {
+		plan.InstallOhMyZsh = true
+	}
+
+	// macOS: convert snapshot preferences to macos.Preference values, unless skipped via flag.
+	if opts.Macos != "skip" && len(st.SnapshotMacOS) > 0 {
+		prefs := make([]macos.Preference, 0, len(st.SnapshotMacOS))
+		for _, p := range st.SnapshotMacOS {
+			prefType := p.Type
+			if prefType == "" {
+				prefType = macos.InferPreferenceType(p.Value)
+			}
+			prefs = append(prefs, macos.Preference{
+				Domain: p.Domain,
+				Key:    p.Key,
+				Type:   prefType,
+				Value:  p.Value,
+				Desc:   p.Desc,
+			})
+		}
+		plan.MacOSPrefs = prefs
+	}
+
+	return plan
 }

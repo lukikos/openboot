@@ -370,7 +370,7 @@ func (m MacOSSelectorModel) macosConfirmationView() string {
 			total++
 		}
 	}
-	content.WriteString(fmt.Sprintf("Total: %d preferences\n\n", total))
+	fmt.Fprintf(&content, "Total: %d preferences\n\n", total)
 
 	for _, cat := range m.categories {
 		var enabled []string

@@ -90,6 +90,11 @@ func Clone(repoURL string, dryRun bool) error {
 			if branch == "" || branch == "HEAD" {
 				branch = "main"
 			}
+			// Reject branch names that could be misinterpreted as flags or path
+			// expressions by git — the remote HEAD ref comes from the network.
+			if strings.HasPrefix(branch, "-") || strings.Contains(branch, "..") {
+				branch = "main"
+			}
 			// Guard against silently discarding local uncommitted changes.
 			if statusOut, err := exec.Command("git", "-C", dotfilesPath, "status", "--porcelain").Output(); err == nil && len(strings.TrimSpace(string(statusOut))) > 0 {
 				ui.Warn(fmt.Sprintf("Local uncommitted changes detected in %s", dotfilesPath))

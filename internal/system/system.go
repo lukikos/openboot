@@ -56,6 +56,14 @@ func RunCommandSilent(name string, args ...string) (string, error) {
 	return strings.TrimSpace(string(output)), err
 }
 
+// RunCommandOutput runs name with args and returns stdout only (not stderr).
+// Use when stderr output must not contaminate parsed stdout (e.g. version probes, list commands).
+func RunCommandOutput(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	output, err := cmd.Output()
+	return strings.TrimSpace(string(output)), err
+}
+
 func InstallHomebrew() error {
 	script := `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
 	cmd := exec.Command("bash", "-c", script)

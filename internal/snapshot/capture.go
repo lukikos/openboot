@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/macos"
+	"github.com/openbootdotdev/openboot/internal/system"
 )
 
 func Capture() (*Snapshot, error) {
@@ -250,13 +251,12 @@ func CaptureNpm() ([]string, error) {
 		return []string{}, nil
 	}
 
-	cmd := exec.Command("npm", "list", "-g", "--depth=0", "--parseable")
-	output, err := cmd.Output()
+	output, err := system.RunCommandOutput("npm", "list", "-g", "--depth=0", "--parseable")
 	if err != nil {
 		return []string{}, nil
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	lines := strings.Split(output, "\n")
 	if len(lines) <= 1 {
 		return []string{}, nil
 	}
@@ -290,13 +290,12 @@ func captureBrewList(args ...string) ([]string, error) {
 		return []string{}, nil
 	}
 
-	cmd := exec.Command("brew", args...)
-	output, err := cmd.Output()
+	output, err := system.RunCommandOutput("brew", args...)
 	if err != nil {
 		return []string{}, fmt.Errorf("brew %s: %w", args[0], err)
 	}
 
-	return parseLines(string(output)), nil
+	return parseLines(output), nil
 }
 
 func CaptureFormulae() ([]string, error) {
@@ -315,8 +314,7 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 	prefs := []MacOSPref{}
 
 	for _, p := range macos.DefaultPreferences {
-		cmd := exec.Command("defaults", "read", p.Domain, p.Key)
-		output, err := cmd.Output()
+		output, err := system.RunCommandOutput("defaults", "read", p.Domain, p.Key)
 		if err != nil {
 			continue
 		}
@@ -325,7 +323,7 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 			Domain: p.Domain,
 			Key:    p.Key,
 			Type:   p.Type,
-			Value:  strings.TrimSpace(string(output)),
+			Value:  output,
 			Desc:   p.Desc,
 		})
 	}
@@ -336,12 +334,12 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 func CaptureGit() (*GitSnapshot, error) {
 	snap := &GitSnapshot{}
 
-	if out, err := exec.Command("git", "config", "--global", "user.name").Output(); err == nil {
-		snap.UserName = strings.TrimSpace(string(out))
+	if out, err := system.RunCommandOutput("git", "config", "--global", "user.name"); err == nil {
+		snap.UserName = out
 	}
 
-	if out, err := exec.Command("git", "config", "--global", "user.email").Output(); err == nil {
-		snap.UserEmail = strings.TrimSpace(string(out))
+	if out, err := system.RunCommandOutput("git", "config", "--global", "user.email"); err == nil {
+		snap.UserEmail = out
 	}
 
 	return snap, nil
@@ -368,13 +366,12 @@ func CaptureDevTools() ([]DevTool, error) {
 			continue
 		}
 
-		cmd := exec.Command(dt.name, dt.args...)
-		output, err := cmd.Output()
+		output, err := system.RunCommandOutput(dt.name, dt.args...)
 		if err != nil {
 			continue
 		}
 
-		version := parseVersion(dt.name, strings.TrimSpace(string(output)))
+		version := parseVersion(dt.name, output)
 		tools = append(tools, DevTool{
 			Name:    dt.name,
 			Version: version,
@@ -395,13 +392,13 @@ func CaptureDotfiles() (*DotfilesSnapshot, error) {
 		return &DotfilesSnapshot{}, nil
 	}
 
-	out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output()
+	out, err := system.RunCommandOutput("git", "-C", dotfilesPath, "remote", "get-url", "origin")
 	if err != nil {
 		return &DotfilesSnapshot{}, nil
 	}
 
 	return &DotfilesSnapshot{
-		RepoURL: strings.TrimSpace(string(out)),
+		RepoURL: out,
 	}, nil
 }
 

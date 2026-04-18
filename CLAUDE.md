@@ -73,7 +73,7 @@ scripts/
 |------|----------|-------|
 | Add CLI command | `internal/cli/` | Register in `root.go init()`, follow cobra pattern |
 | Change install flow | `internal/installer/installer.go` | See `.claude/rules/installer-flow.md` |
-| Change sync / clean | `internal/sync/diff.go`, `internal/cleaner/cleaner.go` | Diff → confirm → execute |
+| Change sync behavior | `internal/sync/diff.go`, `internal/sync/plan.go` | Diff → confirm → execute |
 | Add package category | `openboot.dev/src/lib/package-metadata.ts` | Server is source of truth; CLI fetches `/api/packages` and caches 24h in `~/.openboot/packages-cache.json`. `data/packages.yaml` is fallback only. |
 | Modify presets | `internal/config/data/presets.yaml` | 3 presets: minimal, developer, full |
 | Change brew behavior | `internal/brew/brew.go` | Parallel workers, StickyProgress, Uninstall/UninstallCask |

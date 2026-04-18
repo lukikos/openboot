@@ -68,7 +68,7 @@ func (p *SyncPlan) IsEmpty() bool {
 }
 
 // Execute applies all planned changes. Errors are collected rather than
-// stopping on the first failure, matching the pattern in cleaner.Execute.
+// stopping on the first failure so the caller gets a full summary of what ran.
 func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 	result := &SyncResult{}
 	var errs []error

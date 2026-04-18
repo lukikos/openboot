@@ -31,7 +31,7 @@ func applyMacOSPrefs(plan InstallPlan, r Reporter) error {
 		r.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
 	}
 	if err := macos.Configure(plan.MacOSPrefs, false); err != nil {
-		r.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
+		return fmt.Errorf("configure macOS preferences: %w", err)
 	}
 	r.Success(fmt.Sprintf("macOS preferences configured (%d settings)", len(plan.MacOSPrefs)))
 	macos.RestartAffectedApps(false)

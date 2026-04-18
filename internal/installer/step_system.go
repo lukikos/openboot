@@ -169,12 +169,14 @@ func stepPostInstall(opts *config.InstallOptions, st *config.InstallState) error
 	if opts.DryRun {
 		fmt.Println("[DRY-RUN] Would run the script above")
 	} else {
-		cmd := exec.Command("/bin/zsh", "-c", script)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Dir = home
-		if err := cmd.Run(); err != nil {
-			errs = append(errs, fmt.Errorf("post-install script: %w", err))
+		for i, cmdStr := range commands {
+			c := exec.Command("/bin/zsh", "-c", cmdStr)
+			c.Stdout = os.Stdout
+			c.Stderr = os.Stderr
+			c.Dir = home
+			if err := c.Run(); err != nil {
+				errs = append(errs, fmt.Errorf("post_install[%d]: %w", i, err))
+			}
 		}
 	}
 

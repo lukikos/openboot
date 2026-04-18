@@ -715,7 +715,7 @@ func TestStepPostInstall_CommandFailureReturnsSoftError(t *testing.T) {
 	st := cfg.ToInstallState()
 	err := stepPostInstall(opts, st)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "post-install script")
+	assert.Contains(t, err.Error(), "post_install[0]")
 }
 
 func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
@@ -736,40 +736,16 @@ func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
 
-	// With single-script execution, zsh runs all lines without set -e,
-	// so the second command runs and the script exits 0 (touch succeeds).
+	// With per-command execution each command runs in its own shell.
+	// The failing command (false) produces an error, but subsequent commands still execute.
 	err := stepPostInstall(opts, st)
-	assert.NoError(t, err)
+	assert.Error(t, err, "failure in one command should be reported")
+	assert.Contains(t, err.Error(), "post_install[0]")
 
 	_, statErr := os.Stat(markerFile)
 	assert.NoError(t, statErr, "second command should still run after first fails")
 }
 
-func TestStepPostInstall_SharedContext(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	markerFile := tmpDir + "/shared-context"
-	cfg := &config.Config{
-		Silent:           true,
-		AllowPostInstall: true,
-		RemoteConfig: &config.RemoteConfig{
-			PostInstall: []string{
-				"MY_VAR=hello",
-				"echo $MY_VAR > " + markerFile,
-			},
-		},
-	}
-
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := stepPostInstall(opts, st)
-	assert.NoError(t, err)
-
-	content, readErr := os.ReadFile(markerFile)
-	assert.NoError(t, readErr)
-	assert.Equal(t, "hello\n", string(content), "variable set on one line should be available on the next")
-}
 
 func TestReconcileBrewWithSystem_RemovesUninstalledPackages(t *testing.T) {
 	state := newInstallState()

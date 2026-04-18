@@ -12,6 +12,11 @@ import (
 )
 
 func TestIntegration_Diff_SystemVsItself(t *testing.T) {
+	// Isolate from the developer's real ~/.dotfiles — the diff package
+	// calls git status/log on any local dotfiles repo and would mark the
+	// result as Dirty/Unpushed based on the dev's unrelated local state.
+	t.Setenv("HOME", t.TempDir())
+
 	// Given: we capture the current system state
 	snap, err := snapshot.Capture()
 	require.NoError(t, err, "should capture system snapshot")
@@ -28,6 +33,8 @@ func TestIntegration_Diff_SystemVsItself(t *testing.T) {
 }
 
 func TestIntegration_Diff_SystemVsEmptySnapshot(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	// Given: we capture the current system state and an empty reference
 	snap, err := snapshot.Capture()
 	require.NoError(t, err)
@@ -49,6 +56,8 @@ func TestIntegration_Diff_SystemVsEmptySnapshot(t *testing.T) {
 }
 
 func TestIntegration_Diff_SystemVsSubset(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	// Given: we capture the current system state
 	snap, err := snapshot.Capture()
 	require.NoError(t, err)
@@ -74,6 +83,8 @@ func TestIntegration_Diff_SystemVsSubset(t *testing.T) {
 }
 
 func TestIntegration_Diff_FormatJSON_FromRealCapture(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	// Given: a real system capture
 	snap, err := snapshot.Capture()
 	require.NoError(t, err)

@@ -215,8 +215,16 @@ func TestLoadSnapshot_LocalFile_NotFound(t *testing.T) {
 
 // ── recordPublishResult ───────────────────────────────────────────────────────
 
+func withNoSnapshotBrowser(t *testing.T) {
+	t.Helper()
+	orig := openBrowser
+	openBrowser = func(string) error { return nil }
+	t.Cleanup(func() { openBrowser = orig })
+}
+
 func TestRecordPublishResult_NewConfig_SavesSyncSource(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	withNoSnapshotBrowser(t)
 
 	// targetSlug="" means first publish → should save sync source.
 	recordPublishResult("alice", "my-new-config", "", "public", "https://openboot.dev")
@@ -231,6 +239,7 @@ func TestRecordPublishResult_NewConfig_SavesSyncSource(t *testing.T) {
 
 func TestRecordPublishResult_UpdateExisting_DoesNotOverrideSyncSource(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	withNoSnapshotBrowser(t)
 
 	// Pre-write a sync source for a different config.
 	writeSyncSourceForSnap(t, "original-slug")
@@ -247,6 +256,7 @@ func TestRecordPublishResult_UpdateExisting_DoesNotOverrideSyncSource(t *testing
 
 func TestRecordPublishResult_EmptyResultSlug_NoSave(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	withNoSnapshotBrowser(t)
 
 	// resultSlug="" and targetSlug="" — nothing to save.
 	recordPublishResult("alice", "", "", "private", "https://openboot.dev")

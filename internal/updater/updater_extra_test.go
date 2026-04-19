@@ -5,6 +5,7 @@ package updater
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type updaterRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f updaterRoundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func clientWithTransport(rt http.RoundTripper) *http.Client {
+	return &http.Client{Transport: rt}
+}
 
 // ---------------------------------------------------------------------------
 // GetLatestVersion — mock transport (via fetchLatestVersion injection)
@@ -101,20 +110,18 @@ func TestFetchChecksums_ParseLayer(t *testing.T) {
 	assert.Equal(t, "def456", parsed["openboot-darwin-amd64"])
 }
 
-func TestFetchChecksums_NonOKResponseViaHTTPClient(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+func TestFetchChecksums_NonOKResponse(t *testing.T) {
+	client := clientWithTransport(updaterRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusInternalServerError,
+			Body:       io.NopCloser(strings.NewReader("")),
+			Header:     make(http.Header),
+		}, nil
 	}))
-	defer srv.Close()
 
-	// Directly confirm the test server returns the expected status code.
-	// fetchChecksums delegates to parseChecksumsFile after a successful GET,
-	// so the HTTP-layer error path is verified here via the raw client.
-	client := srv.Client()
-	resp, err := client.Get(srv.URL)
-	require.NoError(t, err)
-	defer resp.Body.Close() //nolint:errcheck
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	_, err := fetchChecksums(client)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "HTTP 500")
 }
 
 // ---------------------------------------------------------------------------

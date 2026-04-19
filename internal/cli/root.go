@@ -1,7 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -33,6 +38,10 @@ shell configuration, and macOS preferences.`,
   # Capture your current environment
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if verbose {
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+		}
+
 		config.SetClientVersion(version)
 		installCfg.Version = version
 
@@ -58,6 +67,7 @@ shell configuration, and macOS preferences.`,
 }
 
 func init() {
+	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "enable debug logging to stderr")
 	rootCmd.Flags().SortFlags = false
 
 	// Root is an alias for `openboot install`, so its flags bind directly to
@@ -125,6 +135,11 @@ Learn more:
   GitHub:        https://github.com/openbootdotdev/openboot
 `
 
+// verbose is set by the --verbose persistent flag.
+var verbose bool
+
 func Execute() error {
-	return rootCmd.Execute()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	return rootCmd.ExecuteContext(ctx)
 }

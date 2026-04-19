@@ -25,7 +25,7 @@ var loginCmd = &cobra.Command{
 		}
 
 		apiBase := auth.GetAPIBase()
-		if _, err := auth.LoginInteractive(apiBase); err != nil {
+		if _, err := auth.LoginInteractive(cmd.Context(), apiBase); err != nil {
 			return fmt.Errorf("login failed: %w", err)
 		}
 

@@ -180,6 +180,7 @@ Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`, `init`, `set
 ```
 -p, --preset NAME      Set preset (minimal, developer, full)
 -u, --user NAME        Use alias or openboot.dev username/slug config
+    --from FILE        Install from a local config or snapshot JSON file
 -s, --silent           Non-interactive mode (requires env vars)
     --dry-run          Preview what would be installed
     --packages-only    Install packages only, skip system config
@@ -188,6 +189,7 @@ Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`, `init`, `set
     --macos MODE       macOS prefs: configure, skip
     --dotfiles MODE    Dotfiles: clone, link, skip
     --post-install MODE  Post-install script: skip
+    --allow-post-install Allow post-install scripts in silent mode
 ```
 
 </details>

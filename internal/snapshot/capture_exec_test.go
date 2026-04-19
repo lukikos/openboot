@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -211,4 +212,30 @@ func TestCapture_CapturedAtIsRecent(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.False(t, snap.CapturedAt.IsZero(), "CapturedAt must be set")
+}
+
+// TestCapture_HealthRecordsFailedSteps verifies that Capture() propagates step
+// failures into Health rather than aborting the whole capture.
+func TestCapture_HealthRecordsFailedSteps(t *testing.T) {
+	orig := captureSteps
+	// Copy the full step slice so assembleSnapshot still receives 9 results.
+	steps := make([]captureStep, len(orig))
+	copy(steps, orig)
+	// Inject a failure into the first step (Homebrew Formulae).
+	steps[0] = captureStep{
+		name:    "Homebrew Formulae",
+		capture: func() (interface{}, error) { return nil, fmt.Errorf("injected failure") },
+		count:   stringsCount,
+	}
+	captureSteps = steps
+	t.Cleanup(func() { captureSteps = orig })
+
+	// Call the public Capture() entry point — not CaptureWithProgress directly —
+	// so the test breaks if the two ever diverge.
+	snap, err := Capture()
+	require.NoError(t, err)
+	require.NotNil(t, snap)
+
+	assert.True(t, snap.Health.Partial, "Health.Partial must be true when a step fails")
+	assert.Contains(t, snap.Health.FailedSteps, "Homebrew Formulae")
 }

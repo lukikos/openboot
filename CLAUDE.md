@@ -41,7 +41,7 @@ make clean
 cmd/openboot/        # main.go → cli.Execute()
 internal/
   auth/              # OAuth-like login, token in ~/.openboot/auth.json (0600)
-  brew/              # Homebrew ops, parallel workers (4 max), retry, uninstall
+  brew/              # Homebrew ops, sequential install with retry, uninstall
   cli/               # Cobra cmds: install, snapshot, login, logout, version
   config/            # Package catalog + presets + remote fetch (embed fallback in data/)
   diff/              # Pure-logic system-vs-config comparison
@@ -94,7 +94,7 @@ These cannot be inferred from code alone — everything else is enforced by `go 
 - **Destructive ops**: check `cfg.DryRun` first. Always.
 - **Paths**: `os.UserHomeDir()` — never hardcode `~` or `/Users/...`.
 - **State**: everything user-local goes under `~/.openboot/` (auth, cache, snapshots, state).
-- **Concurrency**: bounded `sync.WaitGroup` — brew uses max 4 workers. No unbounded goroutines.
+- **Concurrency**: bounded `sync.WaitGroup` — brew install is sequential with retry; `GetInstalledPackages` uses 2 goroutines for formula+cask list. No unbounded goroutines.
 - **Embedded data**: `//go:embed data/*.yaml` loaded in `init()`.
 - **Tests**: table-driven, `testify/require` for fatal, `testify/assert` for non-fatal. L1 uses the `Runner` interface to fake subprocess calls — no real network, no real fork.
 - **Commits**: Conventional (`feat:` / `fix:` / `docs:` / `refactor:` / `test:` / `chore:` / `ci:`), one thing per commit.

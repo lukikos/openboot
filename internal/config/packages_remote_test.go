@@ -1,9 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +14,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func newJSONResponse(status int, body interface{}) *http.Response {
+	b, _ := json.Marshal(body)
+	return &http.Response{
+		StatusCode: status,
+		Body:       io.NopCloser(bytes.NewReader(b)),
+		Header:     make(http.Header),
+	}
+}
+
+func withPackagesTransport(t *testing.T, rt http.RoundTripper) {
+	t.Helper()
+	orig := packagesHTTPTransport
+	packagesHTTPTransport = rt
+	t.Cleanup(func() { packagesHTTPTransport = orig })
+}
 
 // saveAndRestoreCategories snapshots the global Categories and restores it
 // after the test, so merge tests don't pollute each other.
@@ -99,17 +121,15 @@ func TestReadPackagesCache_CorruptJSON(t *testing.T) {
 // --- Fetch tests ---
 
 func TestFetchRemotePackages_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withPackagesTransport(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		assert.Equal(t, "/api/packages", r.URL.Path)
-		json.NewEncoder(w).Encode(remotePackagesResponse{
+		return newJSONResponse(200, remotePackagesResponse{
 			Packages: []remotePackage{
 				{Name: "git", Desc: "VCS", Category: "essential", Installer: "formula"},
 			},
-		})
+		}), nil
 	}))
-	defer server.Close()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
+	t.Setenv("OPENBOOT_API_URL", "http://localhost")
 
 	pkgs, err := fetchRemotePackages()
 	require.NoError(t, err)
@@ -118,12 +138,10 @@ func TestFetchRemotePackages_Success(t *testing.T) {
 }
 
 func TestFetchRemotePackages_ServerError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
+	withPackagesTransport(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return newJSONResponse(500, nil), nil
 	}))
-	defer server.Close()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
+	t.Setenv("OPENBOOT_API_URL", "http://localhost")
 
 	_, err := fetchRemotePackages()
 	assert.Error(t, err)
@@ -131,7 +149,10 @@ func TestFetchRemotePackages_ServerError(t *testing.T) {
 }
 
 func TestFetchRemotePackages_NetworkError(t *testing.T) {
-	t.Setenv("OPENBOOT_API_URL", "http://localhost:1")
+	withPackagesTransport(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, fmt.Errorf("connection refused")
+	}))
+	t.Setenv("OPENBOOT_API_URL", "http://localhost")
 
 	_, err := fetchRemotePackages()
 	assert.Error(t, err)
@@ -139,12 +160,14 @@ func TestFetchRemotePackages_NetworkError(t *testing.T) {
 }
 
 func TestFetchRemotePackages_InvalidJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("not json"))
+	withPackagesTransport(t, roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(bytes.NewReader([]byte("not json"))),
+			Header:     make(http.Header),
+		}, nil
 	}))
-	defer server.Close()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
+	t.Setenv("OPENBOOT_API_URL", "http://localhost")
 
 	_, err := fetchRemotePackages()
 	assert.Error(t, err)

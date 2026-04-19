@@ -64,6 +64,10 @@ func loadRemotePackages() ([]remotePackage, error) {
 	return pkgs, nil
 }
 
+// packagesHTTPTransport is the RoundTripper used by fetchRemotePackages.
+// Tests replace it with an in-memory transport to avoid real network calls.
+var packagesHTTPTransport http.RoundTripper = http.DefaultTransport
+
 func fetchRemotePackages() ([]remotePackage, error) {
 	apiURL := getAPIBase() + "/api/packages"
 
@@ -74,7 +78,7 @@ func fetchRemotePackages() ([]remotePackage, error) {
 
 	client := &http.Client{
 		Timeout:   8 * time.Second,
-		Transport: &versionTransport{base: http.DefaultTransport},
+		Transport: &versionTransport{base: packagesHTTPTransport},
 	}
 	resp, err := client.Do(req)
 	if err != nil {

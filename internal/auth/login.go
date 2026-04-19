@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -51,7 +52,7 @@ type cliPollResponse struct {
 	ExpiresAt string `json:"expires_at,omitempty"`
 }
 
-func LoginInteractive(apiBase string) (*StoredAuth, error) {
+func LoginInteractive(ctx context.Context, apiBase string) (*StoredAuth, error) {
 	codeID, code, err := startAuthSession(apiBase)
 	if err != nil {
 		return nil, err
@@ -69,7 +70,7 @@ func LoginInteractive(apiBase string) (*StoredAuth, error) {
 
 	fmt.Fprintf(os.Stderr, "\nWaiting for approval...\n")
 
-	result, err := pollForApproval(apiBase, codeID)
+	result, err := pollForApproval(ctx, apiBase, codeID)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ var (
 	pollInterval = 2 * time.Second
 )
 
-func pollForApproval(apiBase, codeID string) (*cliPollResponse, error) {
+func pollForApproval(ctx context.Context, apiBase, codeID string) (*cliPollResponse, error) {
 	pollURL := fmt.Sprintf("%s/api/auth/cli/poll?code_id=%s", apiBase, url.QueryEscape(codeID))
 	timeout := time.After(pollTimeout)
 	ticker := time.NewTicker(pollInterval)
@@ -143,6 +144,8 @@ func pollForApproval(apiBase, codeID string) (*cliPollResponse, error) {
 
 	for {
 		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("login cancelled")
 		case <-timeout:
 			return nil, fmt.Errorf("authentication timed out after 5 minutes")
 		case <-ticker.C:

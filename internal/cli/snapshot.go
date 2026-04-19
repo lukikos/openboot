@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -95,7 +96,7 @@ func runSnapshot(cmd *cobra.Command) error {
 			showLocalSaveSummary(snap, path)
 		}
 		if publishFlag {
-			if err := publishSnapshot(snap, slugFlag); err != nil {
+			if err := publishSnapshot(cmd.Context(), snap, slugFlag); err != nil {
 				return err
 			}
 		}
@@ -128,7 +129,7 @@ func runSnapshot(cmd *cobra.Command) error {
 		return nil
 	}
 
-	return interactiveSaveOrPublish(edited)
+	return interactiveSaveOrPublish(cmd.Context(), edited)
 }
 
 // isStdoutTTY returns true when stdout is an interactive terminal.
@@ -142,7 +143,7 @@ func isStdoutTTY() bool {
 
 // interactiveSaveOrPublish asks the user where to send the captured snapshot.
 // This is the TTY-interactive path; explicit flags bypass it.
-func interactiveSaveOrPublish(snap *snapshot.Snapshot) error {
+func interactiveSaveOrPublish(ctx context.Context, snap *snapshot.Snapshot) error {
 	fmt.Fprintln(os.Stderr)
 	options := []string{
 		"Save locally (~/.openboot/snapshot.json)",
@@ -163,14 +164,14 @@ func interactiveSaveOrPublish(snap *snapshot.Snapshot) error {
 		}
 		showLocalSaveSummary(snap, path)
 	case options[1]:
-		return publishSnapshot(snap, "")
+		return publishSnapshot(ctx, snap, "")
 	case options[2]:
 		path, err := snapshot.SaveLocal(snap)
 		if err != nil {
 			return fmt.Errorf("save snapshot: %w", err)
 		}
 		showLocalSaveSummary(snap, path)
-		return publishSnapshot(snap, "")
+		return publishSnapshot(ctx, snap, "")
 	case options[3]:
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Snapshot discarded."))

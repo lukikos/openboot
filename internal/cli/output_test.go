@@ -209,9 +209,9 @@ func TestPrintInstallDiff_MacOSChangedNoDesc_FallsBackToDomainKey(t *testing.T) 
 func TestPrintInstallDiff_ShellChanges_ThemeChanged(t *testing.T) {
 	d := &syncpkg.SyncDiff{
 		Shell: &syncpkg.ShellDiff{
-			ThemeChanged:  true,
-			LocalTheme:    "robbyrussell",
-			RemoteTheme:   "agnoster",
+			ThemeChanged:   true,
+			LocalTheme:     "robbyrussell",
+			RemoteTheme:    "agnoster",
 			PluginsChanged: false,
 		},
 	}

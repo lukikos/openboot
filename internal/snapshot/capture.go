@@ -13,79 +13,11 @@ import (
 	"github.com/openbootdotdev/openboot/internal/system"
 )
 
+// Capture collects a best-effort snapshot of the current environment.
+// Individual step failures are recorded in Snapshot.Health rather than
+// aborting the whole capture.
 func Capture() (*Snapshot, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "unknown"
-	}
-
-	formulae, err := CaptureFormulae()
-	if err != nil {
-		return nil, err
-	}
-
-	casks, err := CaptureCasks()
-	if err != nil {
-		return nil, err
-	}
-
-	taps, err := CaptureTaps()
-	if err != nil {
-		return nil, err
-	}
-
-	npmPkgs, err := CaptureNpm()
-	if err != nil {
-		return nil, err
-	}
-
-	prefs, err := CaptureMacOSPrefs()
-	if err != nil {
-		return nil, err
-	}
-
-	gitSnap, err := CaptureGit()
-	if err != nil {
-		return nil, err
-	}
-
-	dotfilesSnap, err := CaptureDotfiles()
-	if err != nil {
-		return nil, err
-	}
-
-	devTools, err := CaptureDevTools()
-	if err != nil {
-		return nil, err
-	}
-
-	shellSnap, err := CaptureShell()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Snapshot{
-		Version:    1,
-		CapturedAt: time.Now(),
-		Hostname:   hostname,
-		Packages: PackageSnapshot{
-			Formulae: formulae,
-			Casks:    casks,
-			Taps:     taps,
-			Npm:      npmPkgs,
-		},
-		MacOSPrefs:    prefs,
-		Shell:         *shellSnap,
-		Git:           *gitSnap,
-		Dotfiles:      *dotfilesSnap,
-		DevTools:      devTools,
-		MatchedPreset: "",
-		CatalogMatch: CatalogMatch{
-			Matched:   []string{},
-			Unmatched: []string{},
-			MatchRate: 0,
-		},
-	}, nil
+	return CaptureWithProgress(nil)
 }
 
 type ScanStep struct {

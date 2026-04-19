@@ -143,10 +143,22 @@ LINT_COUNT="N/A"
 LINT_SCORE="5"   # neutral default when tool is absent
 
 if command -v golangci-lint &>/dev/null; then
-  raw=$(golangci-lint run ./... 2>&1 | grep -c "^" || true)
-  LINT_COUNT="${raw}"
-  LINT_SCORE=$(score_for "$raw" 0 3 8 15 0)
-  echo "  Issues   : ${BOLD}${LINT_COUNT}${RESET}"
+  lint_output=$(golangci-lint run ./... 2>/dev/null)
+  lint_exit=$?
+  lint_tool_ok=true
+  if [ $lint_exit -eq 0 ]; then
+    raw=0
+  elif [ $lint_exit -eq 1 ]; then
+    raw=$(echo "$lint_output" | grep -c "." || echo 0)
+  else
+    echo "  ${YELLOW}golangci-lint tool error (exit ${lint_exit}) — skipping lint score${RESET}"
+    lint_tool_ok=false
+  fi
+  if $lint_tool_ok; then
+    LINT_COUNT="${raw}"
+    LINT_SCORE=$(score_for "$raw" 0 3 8 15 0)
+    echo "  Issues   : ${BOLD}${LINT_COUNT}${RESET}"
+  fi
 else
   echo "  ${DIM}golangci-lint not installed — skipping (score neutral 5/10)${RESET}"
   LINT_COUNT="N/A"

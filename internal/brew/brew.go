@@ -49,10 +49,10 @@ func GetInstalledPackages() (formulae map[string]bool, casks map[string]bool, er
 	wg.Wait()
 
 	if fErr != nil {
-		return nil, nil, fErr
+		return nil, nil, fmt.Errorf("list formulae: %w", fErr)
 	}
 	if cErr != nil {
-		return nil, nil, cErr
+		return nil, nil, fmt.Errorf("list casks: %w", cErr)
 	}
 
 	for _, name := range strings.Split(strings.TrimSpace(string(fOut)), "\n") {

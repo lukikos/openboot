@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -204,7 +205,7 @@ func TestPollForApproval_Approved(t *testing.T) {
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
 
-	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
+	result, err := pollForApproval(context.Background(), fakeBase+"/poll", "code_id_123")
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "approved", result.Status)
@@ -222,7 +223,7 @@ func TestPollForApproval_Expired(t *testing.T) {
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
 
-	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
+	result, err := pollForApproval(context.Background(), fakeBase+"/poll", "code_id_123")
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "authorization code expired")
@@ -250,7 +251,7 @@ func TestPollForApproval_Pending(t *testing.T) {
 		}
 	}))
 
-	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
+	result, err := pollForApproval(context.Background(), fakeBase+"/poll", "code_id_123")
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "approved", result.Status)
@@ -274,7 +275,7 @@ func TestPollForApproval_TimeoutBehavior(t *testing.T) {
 	}))
 
 	start := time.Now()
-	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
+	result, err := pollForApproval(context.Background(), fakeBase+"/poll", "code_id_123")
 	elapsed := time.Since(start)
 
 	assert.Error(t, err)
@@ -299,7 +300,7 @@ func TestPollForApproval_InvalidResponse(t *testing.T) {
 		w.Write([]byte("invalid json {")) //nolint:errcheck // test helper
 	}))
 
-	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
+	result, err := pollForApproval(context.Background(), fakeBase+"/poll", "code_id_123")
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "timed out")
@@ -406,7 +407,7 @@ func TestLoginInteractive_SuccessRFC3339(t *testing.T) {
 		}
 	}))
 
-	auth, err := LoginInteractive(fakeBase)
+	auth, err := LoginInteractive(context.Background(), fakeBase)
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
 	assert.Equal(t, "obt_token_123", auth.Token)
@@ -442,7 +443,7 @@ func TestLoginInteractive_SuccessSQLiteFormat(t *testing.T) {
 		}
 	}))
 
-	auth, err := LoginInteractive(fakeBase)
+	auth, err := LoginInteractive(context.Background(), fakeBase)
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
 	assert.Equal(t, "obt_token_123", auth.Token)
@@ -458,7 +459,7 @@ func TestLoginInteractive_StartAuthSessionError(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 
-	auth, err := LoginInteractive(fakeBase)
+	auth, err := LoginInteractive(context.Background(), fakeBase)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
 	assert.Contains(t, err.Error(), "status 500")
@@ -483,7 +484,7 @@ func TestLoginInteractive_PollForApprovalError(t *testing.T) {
 		}
 	}))
 
-	auth, err := LoginInteractive(fakeBase)
+	auth, err := LoginInteractive(context.Background(), fakeBase)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
 	assert.Contains(t, err.Error(), "authorization code expired")
@@ -513,7 +514,7 @@ func TestLoginInteractive_InvalidExpirationFormat(t *testing.T) {
 		}
 	}))
 
-	auth, err := LoginInteractive(fakeBase)
+	auth, err := LoginInteractive(context.Background(), fakeBase)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
 	assert.Contains(t, err.Error(), "parse expiration")
@@ -548,7 +549,7 @@ func TestLoginInteractive_SaveTokenError(t *testing.T) {
 		}
 	}))
 
-	auth, err := LoginInteractive(fakeBase)
+	auth, err := LoginInteractive(context.Background(), fakeBase)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
 	assert.Contains(t, err.Error(), "save auth token")

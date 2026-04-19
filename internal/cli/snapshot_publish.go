@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,14 +25,14 @@ import (
 //
 // Updating an existing config does not prompt for metadata; visibility is
 // preserved from the existing config.
-func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
+func publishSnapshot(ctx context.Context, snap *snapshot.Snapshot, explicitSlug string) error {
 	apiBase := auth.GetAPIBase()
 
 	if !auth.IsAuthenticated() {
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "  You need to log in to publish your snapshot.")
 		fmt.Fprintln(os.Stderr)
-		if _, err := auth.LoginInteractive(apiBase); err != nil {
+		if _, err := auth.LoginInteractive(ctx, apiBase); err != nil {
 			return fmt.Errorf("authentication failed: %w", err)
 		}
 	}

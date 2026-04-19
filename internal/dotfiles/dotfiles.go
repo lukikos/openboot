@@ -17,6 +17,21 @@ var branchNameRe = regexp.MustCompile(`^[a-zA-Z0-9._/-]+$`)
 
 const defaultDotfilesDir = ".dotfiles"
 
+// gitExecFunc runs a git command with stdout/stderr forwarded to the terminal.
+// Replaced in tests to avoid forking real git processes.
+var gitExecFunc = func(args []string) error {
+	cmd := exec.Command("git", args...) //nolint:gosec // "git" is a hardcoded binary; args are validated by callers
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// gitOutputFunc runs a git command and captures its stdout.
+// Replaced in tests to avoid forking real git processes.
+var gitOutputFunc = func(args []string) ([]byte, error) {
+	return exec.Command("git", args...).Output() //nolint:gosec // "git" is a hardcoded binary; args are validated by callers
+}
+
 // DefaultDotfilesURL is the fallback dotfiles repository used when the user
 // does not supply their own.
 const DefaultDotfilesURL = "https://github.com/openbootdotdev/dotfiles"
@@ -73,7 +88,7 @@ func handleExistingDotfiles(dotfilesPath, repoURL string, dryRun bool) (needsClo
 
 // checkRemoteChanged returns the current remote URL and whether it differs from repoURL.
 func checkRemoteChanged(dotfilesPath, repoURL string) (currentURL string, changed bool) {
-	out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output() //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+	out, err := gitOutputFunc([]string{"-C", dotfilesPath, "remote", "get-url", "origin"})
 	if err != nil {
 		return "", false
 	}
@@ -112,11 +127,8 @@ func syncExistingDotfiles(dotfilesPath string, dryRun bool) error {
 	fmt.Printf("Dotfiles already exist at %s, syncing latest changes\n", dotfilesPath)
 	// Use fetch + reset instead of pull to handle dirty states
 	// (unmerged files, mid-rebase, etc.) gracefully.
-	fetchCmd := exec.Command("git", "-C", dotfilesPath, "fetch", "origin") //nolint:gosec // git binary is hardcoded; path variable is validated repo path
-	fetchCmd.Stdout = os.Stdout
-	fetchCmd.Stderr = os.Stderr
-	if err := fetchCmd.Run(); err != nil {
-		return err
+	if err := gitExecFunc([]string{"-C", dotfilesPath, "fetch", "origin"}); err != nil {
+		return fmt.Errorf("dotfiles fetch: %w", err)
 	}
 
 	branch := resolveBranch(dotfilesPath)
@@ -126,22 +138,22 @@ func syncExistingDotfiles(dotfilesPath string, dryRun bool) error {
 		return nil
 	}
 
-	resetCmd := exec.Command("git", "-C", dotfilesPath, "reset", "--hard", "origin/"+branch) //nolint:gosec // git binary is hardcoded; branch is sanitised by resolveBranch
-	resetCmd.Stdout = os.Stdout
-	resetCmd.Stderr = os.Stderr
-	return resetCmd.Run()
+	if err := gitExecFunc([]string{"-C", dotfilesPath, "reset", "--hard", "origin/" + branch}); err != nil {
+		return fmt.Errorf("dotfiles reset: %w", err)
+	}
+	return nil
 }
 
 // resolveBranch determines the current branch name, falling back to "main" for
 // detached HEAD states or branch names that could be misinterpreted by git.
 func resolveBranch(dotfilesPath string) string {
 	branch := ""
-	if out, err := exec.Command("git", "-C", dotfilesPath, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil { //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+	if out, err := gitOutputFunc([]string{"-C", dotfilesPath, "rev-parse", "--abbrev-ref", "HEAD"}); err == nil {
 		branch = strings.TrimSpace(string(out))
 	}
 	// Detached HEAD (e.g. mid-rebase) or failed detection: resolve the remote's default branch.
 	if branch == "" || branch == "HEAD" {
-		if out, err := exec.Command("git", "-C", dotfilesPath, "symbolic-ref", "refs/remotes/origin/HEAD").Output(); err == nil { //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+		if out, err := gitOutputFunc([]string{"-C", dotfilesPath, "symbolic-ref", "refs/remotes/origin/HEAD"}); err == nil {
 			// Returns e.g. "refs/remotes/origin/main"
 			ref := strings.TrimSpace(string(out))
 			branch = strings.TrimPrefix(ref, "refs/remotes/origin/")
@@ -164,7 +176,7 @@ func resolveBranch(dotfilesPath string) string {
 // confirmResetIfDirty checks for local uncommitted changes and prompts the user
 // to confirm before proceeding. Returns true if it is safe to reset.
 func confirmResetIfDirty(dotfilesPath, branch string) bool {
-	statusOut, err := exec.Command("git", "-C", dotfilesPath, "status", "--porcelain").Output() //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+	statusOut, err := gitOutputFunc([]string{"-C", dotfilesPath, "status", "--porcelain"})
 	if err != nil || len(strings.TrimSpace(string(statusOut))) == 0 {
 		return true
 	}

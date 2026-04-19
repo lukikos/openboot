@@ -21,13 +21,13 @@ Six commands are removed outright. Each prints an error with a migration hint wh
 | `openboot doctor` | **no replacement** — use `brew doctor` and `git config --list` directly |
 | `openboot update` | **no replacement** — use `brew upgrade` directly; OpenBoot self-updates on launch |
 
-Three flat commands move under a `config` namespace:
+Three flat commands are removed with no replacement — manage configs directly at openboot.dev:
 
-| Before | After |
-|--------|-------|
-| `openboot list` | `openboot config list` |
-| `openboot edit` | `openboot config edit` |
-| `openboot delete` | `openboot config delete` |
+| Command | Status |
+|---------|--------|
+| `openboot list` | **no replacement** — use openboot.dev dashboard |
+| `openboot edit` | **no replacement** — use openboot.dev dashboard |
+| `openboot delete` | **no replacement** — use openboot.dev dashboard |
 
 No aliases are kept — silent aliasing would regress behavior invisibly (the old `pull` did uninstalls, the new `install` does not).
 

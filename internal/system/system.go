@@ -72,11 +72,10 @@ func RunCommandOutput(name string, args ...string) (string, error) {
 
 // knownBrewInstallHash is the SHA256 of the Homebrew install script pinned on
 // 2026-04-19 (Homebrew/install HEAD as of that date). Update this constant
-// whenever the installer script changes upstream.
-// TODO: update this hash each release by running:
+// whenever the installer script changes upstream by running:
 //
 //	curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | sha256sum
-const knownBrewInstallHash = "HOMEBREW_INSTALL_SHA256"
+const knownBrewInstallHash = "dfd5145fe2aa5956a600e35848765273f5798ce6def01bd08ecec088a1268d91"
 
 // brewInstallURL is a var so tests can redirect it to a local httptest server.
 var brewInstallURL = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"

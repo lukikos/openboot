@@ -38,11 +38,11 @@ OpenBoot is a macOS CLI that automates developer environment setup. In a single 
 | **Local user running `openboot`** | Full trust | The CLI runs as the user. All actions are bounded by the user's own file permissions. |
 | **openboot.dev API** | High, with validation | All responses are validated against a schema (`RemoteConfig.Validate()`). Response body size is capped at 1 MiB (`io.LimitReader`). The API URL is pinned to HTTPS (configurable only to HTTPS or localhost). |
 | **Remote config author** (`openboot install <user/slug>`) | Medium — verified identity, untrusted content | The config author is an authenticated openboot.dev user. Their package names are regex-validated. Their `post_install` commands are not executed without explicit opt-in. |
-| **Oh-My-Zsh GitHub CDN** (`raw.githubusercontent.com`) | Accepted risk, no hash verification | The OMZ install script is fetched and executed via `curl | sh`. No checksum is verified. This is the official OMZ install method. |
+| **Oh-My-Zsh GitHub CDN** (`raw.githubusercontent.com`) | Mitigated — SHA256 pinned | The OMZ install script is downloaded and its SHA256 is verified against a pinned constant (`knownOMZInstallHash` in `internal/shell/shell.go`) before execution. Execution is refused on mismatch. |
 | **Homebrew** | High | Homebrew is treated as a trusted package manager. Package integrity is managed by Homebrew's own SHA-256 verification. OpenBoot only passes package names to `brew install`. |
 | **npm registry** | Medium | npm packages are installed by name with no additional pinning beyond whatever `npm` itself enforces (no lockfile context at install time). |
 | **Dotfiles repository** | Untrusted until user confirms | Cloned from a URL supplied by the config or the user. The URL is validated to use HTTPS. Content of the cloned repo is not scanned. |
-| **GitHub Releases** (auto-update) | High, no hash verification | Binary downloads come from `github.com/openbootdotdev/openboot/releases`. No checksum is verified after download. The binary is written over the current executable. |
+| **GitHub Releases** (auto-update) | High — checksums verified | Binary downloads come from `github.com/openbootdotdev/openboot/releases`. The release checksums file is fetched first and the downloaded binary is verified against it before the running executable is replaced (`internal/updater/updater.go`). |
 
 ---
 
@@ -126,13 +126,13 @@ OpenBoot is a macOS CLI that automates developer environment setup. In a single 
 - HTTPS is used. TLS certificate validation is performed by the system's `curl`.
 - This is the officially documented install method for Oh-My-Zsh. The project does not provide a signed release artifact.
 
-**Accepted risk:** There is no hash pinning. A compromise of the GitHub repository, CDN, or a TLS MitM would not be detected. This is the same risk accepted by every other tool that uses the official OMZ installer. It is listed here for transparency, not because there is a viable alternative that the OMZ project provides.
+**Mitigated:** The downloaded script's SHA256 is verified against a pinned constant before execution (`knownOMZInstallHash` in `internal/shell/shell.go`). Execution is refused on mismatch. The pinned hash must be updated manually when the OMZ installer script changes upstream.
 
 ---
 
-### T5 — Auto-Update Binary Replacement Without Hash Verification
+### T5 — Auto-Update Binary Replacement
 
-**Description:** When not installed via Homebrew, `DownloadAndReplace` fetches the latest release binary from `github.com/openbootdotdev/openboot/releases/latest/download/openboot-darwin-<arch>` and atomically replaces the running executable. No checksum is verified after download.
+**Description:** When not installed via Homebrew, `DownloadAndReplace` fetches the latest release binary from `github.com/openbootdotdev/openboot/releases/latest/download/openboot-darwin-<arch>` and atomically replaces the running executable. The release checksums file is fetched first and verified before the replacement occurs.
 
 **Likelihood:** Low (requires GitHub infrastructure compromise or TLS MitM).
 
@@ -143,12 +143,13 @@ OpenBoot is a macOS CLI that automates developer environment setup. In a single 
 - The download URL is hardcoded to `github.com`. It is not user-configurable.
 - HTTPS is used with system TLS.
 - The replacement is atomic (`os.Rename` from a `.tmp` file), so a failed download does not corrupt the existing binary.
+- The release checksums file is fetched from GitHub Releases and the downloaded binary is verified against it before replacement (`fetchChecksums` + `verifyChecksum` in `internal/updater/updater.go`).
 - Homebrew installs (the primary distribution channel) use `brew upgrade`, which verifies the formula's SHA-256 bottle checksum.
 - Auto-update can be disabled with `OPENBOOT_DISABLE_AUTOUPDATE=1` or by setting `~/.openboot/config.json` `autoupdate` to `"false"` or `"notify"`.
 
-**Residual risk:** Direct binary installs (non-Homebrew) have no post-download integrity check. The `OPENBOOT_UPGRADING=1` guard prevents infinite re-exec loops but does not authenticate the downloaded binary.
+**Residual risk:** The checksums file itself is served from GitHub Releases over HTTPS; a full GitHub infrastructure compromise would allow an attacker to replace both the binary and the checksums. The `OPENBOOT_UPGRADING=1` guard prevents infinite re-exec loops.
 
-**Recommendation:** Prefer Homebrew installation, which provides formula-level SHA-256 verification. If using direct binary install in a managed fleet, set `OPENBOOT_DISABLE_AUTOUPDATE=1` and control updates out-of-band.
+**Recommendation:** If using direct binary install in a managed fleet, set `OPENBOOT_DISABLE_AUTOUPDATE=1` and control updates out-of-band.
 
 ---
 

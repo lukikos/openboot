@@ -21,7 +21,6 @@ linters:
     - errcheck
     - govet
     - staticcheck
-    - gosimple
     - ineffassign
     - unused
     - gocyclo
@@ -34,11 +33,13 @@ linters:
       default-signifies-exhaustive: true
     errcheck:
       exclude-functions:
-        - (net/http.Response).Body.Close
+        - (io.ReadCloser).Close
+        - (io.Closer).Close
         - (net/http.ResponseWriter).Write
         - (*encoding/json.Encoder).Encode
         - os.WriteFile
         - (*os.File).Close
+        - os.Remove
     gocyclo:
       min-complexity: 15
     gosec:

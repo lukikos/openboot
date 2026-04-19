@@ -7,7 +7,10 @@ import "net/http"
 //
 // Routes registered:
 //
-//	GET /health  — liveness probe
+//	GET /health   — liveness probe
+//	GET /healthz  — alias for liveness probe (kubectl convention)
 func RegisterRoutes(mux *http.ServeMux, version string) {
-	mux.Handle("GET /health", Handler(version))
+	h := Handler(version)
+	mux.Handle("GET /health", h)
+	mux.Handle("GET /healthz", h)
 }

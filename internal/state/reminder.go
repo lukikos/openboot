@@ -52,7 +52,7 @@ func SaveState(path string, s *ReminderState) error {
 
 	// Atomic write: write to temp file, then rename
 	tmpFile := path + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
 		return fmt.Errorf("write temp state: %w", err)
 	}
 

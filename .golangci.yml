@@ -1,9 +1,19 @@
 version: "2"
 
+run:
+  timeout: 5m
+  skip-dirs:
+    - vendor
+    - testutil
+
 formatters:
   enable:
     - gofmt
     - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/openbootdotdev/openboot
 
 linters:
   default: none
@@ -11,7 +21,11 @@ linters:
     - errcheck
     - govet
     - staticcheck
+    - gosimple
+    - ineffassign
     - unused
+    - gocyclo
+    - gosec
     - misspell
     - unconvert
     - exhaustive
@@ -25,8 +39,19 @@ linters:
         - (*encoding/json.Encoder).Encode
         - os.WriteFile
         - (*os.File).Close
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        - G304 # File path provided as taint input — acceptable for CLI tools
   exclusions:
     rules:
       - path: "_test\\.go"
         linters:
           - errcheck
+          - gosec
+      - path: "testutil/"
+        linters:
+          - gosec
+          - errcheck
+          - unused

@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-04-18T19:06:26Z",
+  "git_sha": "527ebe9",
+  "dimensions": {
+    "test_coverage": {
+      "raw": "56.9%",
+      "score": 3.79,
+      "weight": 25
+    },
+    "lint_errors": {
+      "raw": "2",
+      "score": 8.67,
+      "weight": 20
+    },
+    "security": {
+      "raw": "1",
+      "score": 8.00,
+      "weight": 25
+    },
+    "complexity": {
+      "raw": "6.91",
+      "score": 8.73,
+      "weight": 15
+    },
+    "file_size": {
+      "raw": "4",
+      "score": 5.33,
+      "weight": 15
+    }
+  },
+  "total_score": 6.8
+}

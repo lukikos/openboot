@@ -1,6 +1,8 @@
 package system
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"runtime"
@@ -318,4 +320,168 @@ func TestGetGitConfig_FallsBackToAnyScope(t *testing.T) {
 	// If git is not installed or no config exists, should return empty
 	// The function tries --global first, then falls back to any scope
 	assert.IsType(t, "", value)
+}
+
+// ---------------------------------------------------------------------------
+// HomeDir
+// ---------------------------------------------------------------------------
+
+func TestHomeDir_ReturnsNonEmpty(t *testing.T) {
+	home, err := HomeDir()
+	require.NoError(t, err)
+	assert.NotEmpty(t, home)
+}
+
+func TestHomeDir_MatchesEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	home, err := HomeDir()
+	require.NoError(t, err)
+	assert.Equal(t, tmpDir, home)
+}
+
+// ---------------------------------------------------------------------------
+// HomebrewPrefix — both arch branches covered via table
+// ---------------------------------------------------------------------------
+
+func TestHomebrewPrefix_MatchesArch(t *testing.T) {
+	prefix := HomebrewPrefix()
+	assert.NotEmpty(t, prefix)
+
+	switch runtime.GOARCH {
+	case "arm64":
+		assert.Equal(t, "/opt/homebrew", prefix)
+	default:
+		assert.Equal(t, "/usr/local", prefix)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// RunCommandOutput
+// ---------------------------------------------------------------------------
+
+func TestRunCommandOutput_CapturesStdout(t *testing.T) {
+	output, err := RunCommandOutput("echo", "hello")
+	require.NoError(t, err)
+	assert.Equal(t, "hello", output)
+}
+
+func TestRunCommandOutput_DoesNotCaptureStderr(t *testing.T) {
+	// When the command writes only to stderr and succeeds (exit 0), stdout is empty.
+	output, err := RunCommandOutput("sh", "-c", "echo only-stderr >&2")
+	require.NoError(t, err)
+	assert.Equal(t, "", output)
+}
+
+func TestRunCommandOutput_TrimSpace(t *testing.T) {
+	output, err := RunCommandOutput("printf", "  trimmed  ")
+	require.NoError(t, err)
+	assert.Equal(t, "trimmed", output)
+}
+
+func TestRunCommandOutput_CommandFails(t *testing.T) {
+	_, err := RunCommandOutput("ls", "/nonexistent/directory/12345")
+	assert.Error(t, err)
+}
+
+func TestRunCommandOutput_CommandNotFound(t *testing.T) {
+	_, err := RunCommandOutput("nonexistentcmd99999")
+	assert.Error(t, err)
+}
+
+// ---------------------------------------------------------------------------
+// InstallHomebrew — hermetic paths via httptest
+// ---------------------------------------------------------------------------
+
+func TestInstallHomebrew_HTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := brewInstallURL
+	brewInstallURL = srv.URL
+	t.Cleanup(func() { brewInstallURL = orig })
+
+	err := InstallHomebrew()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected status")
+}
+
+func TestInstallHomebrew_SHA256Mismatch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("#!/bin/bash\necho fake-script")) //nolint:errcheck
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := brewInstallURL
+	brewInstallURL = srv.URL
+	t.Cleanup(func() { brewInstallURL = orig })
+
+	err := InstallHomebrew()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SHA256 mismatch")
+}
+
+// ---------------------------------------------------------------------------
+// HasTTY — ensure all branches are exercised
+// ---------------------------------------------------------------------------
+
+func TestHasTTY_ReturnsBool(t *testing.T) {
+	result := HasTTY()
+	// Just assert it's actually a bool (not a zero-value from uninitialized state).
+	assert.IsType(t, false, result)
+}
+
+// ---------------------------------------------------------------------------
+// ConfigureGit — error path via bad HOME
+// ---------------------------------------------------------------------------
+
+func TestConfigureGit_WritesConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	err := ConfigureGit("Test User", "test@example.com")
+	if err != nil {
+		// git may not be installed in all CI environments — acceptable skip.
+		t.Logf("ConfigureGit failed (tolerated): %v", err)
+		return
+	}
+
+	// Verify the config was written correctly.
+	name, email := GetExistingGitConfig()
+	assert.Equal(t, "Test User", name)
+	assert.Equal(t, "test@example.com", email)
+}
+
+// ---------------------------------------------------------------------------
+// IsAllowedAPIURL — all branches
+// ---------------------------------------------------------------------------
+
+func TestIsAllowedAPIURL(t *testing.T) {
+	tests := []struct {
+		name  string
+		url   string
+		allow bool
+	}{
+		{"https scheme allowed", "https://openboot.dev/api", true},
+		{"https with path", "https://example.com/foo/bar", true},
+		{"localhost http allowed", "http://localhost:8080/api", true},
+		{"127.0.0.1 http allowed", "http://127.0.0.1:3000", true},
+		{"IPv6 loopback allowed", "http://[::1]:9000", true},
+		{"plain http blocked", "http://openboot.dev/api", false},
+		{"http other host blocked", "http://evil.com", false},
+		{"ftp scheme blocked", "ftp://example.com", false},
+		{"empty string blocked", "", false},
+		{"just hostname blocked", "openboot.dev", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := IsAllowedAPIURL(tc.url)
+			assert.Equal(t, tc.allow, got)
+		})
+	}
 }

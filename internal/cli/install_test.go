@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLooksLikeFilePath(t *testing.T) {
@@ -103,4 +104,139 @@ func TestRelativeTime(t *testing.T) {
 			assert.Contains(t, relativeTime(tt.d), tt.contains)
 		})
 	}
+}
+
+func TestResolveInstallSource_FromFlag(t *testing.T) {
+	cmd := installCmd
+	// reset the --from flag value between subtests
+	require.NoError(t, cmd.Flags().Set("from", ""))
+
+	t.Run("from flag takes precedence over args", func(t *testing.T) {
+		require.NoError(t, cmd.Flags().Set("from", "/tmp/config.json"))
+		t.Cleanup(func() { _ = cmd.Flags().Set("from", "") })
+
+		src, err := resolveInstallSource(cmd, []string{"developer"})
+		require.NoError(t, err)
+		assert.Equal(t, sourceFile, src.kind)
+		assert.Equal(t, "/tmp/config.json", src.path)
+	})
+}
+
+func TestResolveInstallSource_UserFlag(t *testing.T) {
+	// Save and restore installCfg.User
+	orig := installCfg.User
+	t.Cleanup(func() { installCfg.User = orig })
+
+	installCfg.User = "alice/setup"
+	cmd := installCmd
+	require.NoError(t, cmd.Flags().Set("from", ""))
+
+	src, err := resolveInstallSource(cmd, []string{})
+	require.NoError(t, err)
+	assert.Equal(t, sourceCloud, src.kind)
+	assert.Equal(t, "alice/setup", src.userSlug)
+}
+
+func TestResolveInstallSource_PresetFlag(t *testing.T) {
+	// Save and restore installCfg.Preset and installCfg.User
+	origPreset := installCfg.Preset
+	origUser := installCfg.User
+	t.Cleanup(func() {
+		installCfg.Preset = origPreset
+		installCfg.User = origUser
+	})
+
+	installCfg.Preset = "minimal"
+	installCfg.User = ""
+	cmd := installCmd
+	require.NoError(t, cmd.Flags().Set("from", ""))
+
+	src, err := resolveInstallSource(cmd, []string{})
+	require.NoError(t, err)
+	assert.Equal(t, sourcePreset, src.kind)
+}
+
+func TestResolveInstallSource_NoArgs_NoSyncSource(t *testing.T) {
+	// No flags, no args, no sync source on disk → sourceNone
+	origPreset := installCfg.Preset
+	origUser := installCfg.User
+	t.Cleanup(func() {
+		installCfg.Preset = origPreset
+		installCfg.User = origUser
+	})
+
+	installCfg.Preset = ""
+	installCfg.User = ""
+
+	// Use a temp HOME with no .openboot directory so LoadSource returns nil.
+	t.Setenv("HOME", t.TempDir())
+
+	cmd := installCmd
+	require.NoError(t, cmd.Flags().Set("from", ""))
+
+	src, err := resolveInstallSource(cmd, []string{})
+	require.NoError(t, err)
+	assert.Equal(t, sourceNone, src.kind)
+}
+
+func TestResolveInstallSource_PositionalFile(t *testing.T) {
+	origPreset := installCfg.Preset
+	origUser := installCfg.User
+	t.Cleanup(func() {
+		installCfg.Preset = origPreset
+		installCfg.User = origUser
+	})
+
+	installCfg.Preset = ""
+	installCfg.User = ""
+
+	t.Setenv("HOME", t.TempDir())
+	cmd := installCmd
+	require.NoError(t, cmd.Flags().Set("from", ""))
+
+	src, err := resolveInstallSource(cmd, []string{"./my-config.json"})
+	require.NoError(t, err)
+	assert.Equal(t, sourceFile, src.kind)
+	assert.Equal(t, "./my-config.json", src.path)
+}
+
+func TestResolveInstallSource_PositionalUserSlug(t *testing.T) {
+	origPreset := installCfg.Preset
+	origUser := installCfg.User
+	t.Cleanup(func() {
+		installCfg.Preset = origPreset
+		installCfg.User = origUser
+	})
+
+	installCfg.Preset = ""
+	installCfg.User = ""
+
+	t.Setenv("HOME", t.TempDir())
+	cmd := installCmd
+	require.NoError(t, cmd.Flags().Set("from", ""))
+
+	src, err := resolveInstallSource(cmd, []string{"bob/dev-env"})
+	require.NoError(t, err)
+	assert.Equal(t, sourceCloud, src.kind)
+	assert.Equal(t, "bob/dev-env", src.userSlug)
+}
+
+func TestResolveInstallSource_PositionalPreset(t *testing.T) {
+	origPreset := installCfg.Preset
+	origUser := installCfg.User
+	t.Cleanup(func() {
+		installCfg.Preset = origPreset
+		installCfg.User = origUser
+	})
+
+	installCfg.Preset = ""
+	installCfg.User = ""
+
+	t.Setenv("HOME", t.TempDir())
+	cmd := installCmd
+	require.NoError(t, cmd.Flags().Set("from", ""))
+
+	src, err := resolveInstallSource(cmd, []string{"full"})
+	require.NoError(t, err)
+	assert.Equal(t, sourcePreset, src.kind)
 }

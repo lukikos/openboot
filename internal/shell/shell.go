@@ -126,7 +126,7 @@ func EnsureBrewShellenv(dryRun bool) error {
 			fmt.Printf("[DRY-RUN] Would create %s with Homebrew shellenv\n", zshrcPath)
 			return nil
 		}
-		return os.WriteFile(zshrcPath, []byte(brewShellenvLine+"\n"), 0644)
+		return os.WriteFile(zshrcPath, []byte(brewShellenvLine+"\n"), 0600)
 	}
 
 	raw, err := os.ReadFile(zshrcPath)
@@ -147,7 +147,7 @@ func EnsureBrewShellenv(dryRun bool) error {
 		content += "\n"
 	}
 	content = brewShellenvLine + "\n" + content
-	return os.WriteFile(zshrcPath, []byte(content), 0644)
+	return os.WriteFile(zshrcPath, []byte(content), 0600)
 }
 
 func SetDefaultShell(dryRun bool) error {
@@ -232,7 +232,7 @@ func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
 	}
 
 	tmpPath := zshrcPath + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(tmpPath, []byte(content), 0600); err != nil {
 		return fmt.Errorf("write .zshrc: %w", err)
 	}
 	if err := os.Rename(tmpPath, zshrcPath); err != nil {
@@ -281,7 +281,7 @@ ZSH_THEME="%s"
 plugins=(%s)
 source $ZSH/oh-my-zsh.sh
 `, theme, strings.Join(plugins, " "))
-		if err := os.WriteFile(zshrcPath, []byte(template), 0644); err != nil {
+		if err := os.WriteFile(zshrcPath, []byte(template), 0600); err != nil {
 			return fmt.Errorf("create .zshrc: %w", err)
 		}
 		return nil

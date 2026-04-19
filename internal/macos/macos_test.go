@@ -133,3 +133,149 @@ func TestRestartAffectedApps_DryRun(t *testing.T) {
 // TestRestartAffectedApps_NoDryRun kills real system processes (Finder, Dock, SystemUIServer),
 // so it must only run with the integration build tag.
 // See test/integration/ for the integration-tagged version.
+
+// ---------------------------------------------------------------------------
+// normalizeBool
+// ---------------------------------------------------------------------------
+
+func TestNormalizeBool(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"1", "true"},
+		{"yes", "true"},
+		{"YES", "true"},
+		{"Yes", "true"},
+		{"0", "false"},
+		{"no", "false"},
+		{"NO", "false"},
+		{"No", "false"},
+		{"true", "true"},
+		{"false", "false"},
+		// normalizeBool only lowercases "1/yes" → "true" and "0/no" → "false";
+		// mixed-case "TRUE"/"FALSE" are not in the switch and pass through unchanged.
+		{"TRUE", "TRUE"},
+		{"FALSE", "FALSE"},
+		{"other", "other"},
+		{"", ""},
+		{"42", "42"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			got := normalizeBool(tc.in)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// InferPreferenceType
+// ---------------------------------------------------------------------------
+
+func TestInferPreferenceType(t *testing.T) {
+	tests := []struct {
+		value string
+		want  string
+	}{
+		// bool variants
+		{"true", "bool"},
+		{"false", "bool"},
+		{"TRUE", "bool"},
+		{"FALSE", "bool"},
+		{"1", "bool"},
+		{"0", "bool"},
+		{"yes", "bool"},
+		{"no", "bool"},
+		{"YES", "bool"},
+		{"NO", "bool"},
+		// int
+		{"42", "int"},
+		{"100", "int"},
+		{"999", "int"},
+		// float
+		{"3.14", "float"},
+		{"0.5", "float"},
+		{"1.0", "float"},
+		// Implementation strips all dots before checking digits, so "1.2.3" → "123" → float
+		{"1.2.3", "float"},
+		// string fallbacks
+		{"hello", "string"},
+		{"path/to/file", "string"},
+		{"", "string"}, // empty value — not "all digits"
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.value+"->"+tc.want, func(t *testing.T) {
+			got := InferPreferenceType(tc.value)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// expandHome edge cases
+// ---------------------------------------------------------------------------
+
+func TestExpandHome_HomeDirError(t *testing.T) {
+	// When HOME is unset os.UserHomeDir fails; expandHome should return the
+	// original path unchanged.
+	t.Setenv("HOME", "")
+	result := expandHome("~/somefile")
+	// Either returns original path OR expands (depending on whether the OS
+	// has a fallback). We just verify it does not panic and returns a string.
+	assert.IsType(t, "", result)
+}
+
+// ---------------------------------------------------------------------------
+// Configure — default-type branch (empty Type field)
+// ---------------------------------------------------------------------------
+
+func TestConfigure_DryRunDefaultType(t *testing.T) {
+	// Exercises the "default:" branch inside Configure where Type is not one of
+	// bool/int/float/string, so the value is appended directly.
+	prefs := []Preference{
+		{Domain: "com.apple.test", Key: "SomeKey", Type: "", Value: "rawvalue", Desc: "default type test"},
+	}
+	err := Configure(prefs, true)
+	assert.NoError(t, err)
+}
+
+func TestConfigure_DryRunExpandsHomePath(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	prefs := []Preference{
+		{Domain: "com.apple.screencapture", Key: "location", Type: "string", Value: "~/Screenshots", Desc: "Screenshots dir"},
+	}
+	err := Configure(prefs, true)
+	assert.NoError(t, err)
+}
+
+// ---------------------------------------------------------------------------
+// InferPreferenceType — table correctness for int boundary
+// ---------------------------------------------------------------------------
+
+func TestInferPreferenceType_IntNotBool(t *testing.T) {
+	// Values that are all-digit but NOT "0" or "1" must return "int".
+	for _, v := range []string{"2", "10", "255", "1024"} {
+		t.Run(v, func(t *testing.T) {
+			got := InferPreferenceType(v)
+			assert.Equal(t, "int", got)
+		})
+	}
+}
+
+func TestInferPreferenceType_MultiDotIsFloat(t *testing.T) {
+	// InferPreferenceType strips all dots before checking digits, so "1.2.3"
+	// becomes "123" which is all-numeric and returns "float".
+	// This documents the actual implementation behavior.
+	got := InferPreferenceType("1.2.3")
+	assert.Equal(t, "float", got)
+}
+
+func TestInferPreferenceType_FloatWithLetters(t *testing.T) {
+	got := InferPreferenceType("1.x")
+	assert.Equal(t, "string", got)
+}

@@ -106,7 +106,7 @@ func TestSaveState_Permissions(t *testing.T) {
 
 	info, err := os.Stat(statePath)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
 }
 
 func TestSaveState_Indented(t *testing.T) {

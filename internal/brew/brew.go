@@ -137,7 +137,7 @@ func Install(packages []string, dryRun bool) error {
 	ui.Info(fmt.Sprintf("Installing %d CLI packages...", len(packages)))
 
 	args := append([]string{"install"}, packages...)
-	cmd := exec.Command("brew", args...)
+	cmd := brewInstallCmd(args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -182,7 +182,7 @@ func InstallCask(packages []string, dryRun bool) error {
 	ui.Info(fmt.Sprintf("Installing %d GUI applications...", len(packages)))
 
 	args := append([]string{"install", "--cask"}, packages...)
-	cmd := exec.Command("brew", args...)
+	cmd := brewInstallCmd(args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

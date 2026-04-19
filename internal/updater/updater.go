@@ -185,13 +185,27 @@ const brewFormula = brewTap + "/openboot"
 
 // execBrewUpgrade is a package-level variable to allow test injection.
 var execBrewUpgrade = func(formula string) error {
-	script := fmt.Sprintf(
-		`git -C "$(brew --repo %s)" pull --ff-only && brew upgrade %s`,
-		brewTap, formula,
-	)
-	cmd := exec.Command("sh", "-c", script)
-	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
-	return cmd.Run()
+	// Step 1: resolve the tap repository path.
+	repoOut, err := exec.Command("brew", "--repo", brewTap).Output()
+	if err != nil {
+		return fmt.Errorf("brew --repo %s: %w", brewTap, err)
+	}
+	repoPath := strings.TrimSpace(string(repoOut))
+
+	// Step 2: fast-forward the tap to pick up the new formula revision.
+	gitCmd := exec.Command("git", "-C", repoPath, "pull", "--ff-only")
+	gitCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
+	if err := gitCmd.Run(); err != nil {
+		return fmt.Errorf("git pull tap: %w", err)
+	}
+
+	// Step 3: upgrade the formula.
+	upgradeCmd := exec.Command("brew", "upgrade", formula)
+	upgradeCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
+	if err := upgradeCmd.Run(); err != nil {
+		return fmt.Errorf("brew upgrade %s: %w", formula, err)
+	}
+	return nil
 }
 
 func doBrewUpgrade(currentVersion, latestVersion string) {

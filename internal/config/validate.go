@@ -13,8 +13,9 @@ const (
 )
 
 var (
-	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
-	tapNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
+	pkgNameRe   = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
+	tapNameRe   = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
+	domainKeyRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 	// dotfilesPathRe validates the path component: one or more segments of
 	// alphanumeric, dash, underscore, or dot characters separated by slashes.
@@ -106,6 +107,12 @@ func (rc *RemoteConfig) Validate() error {
 		}
 		if strings.HasPrefix(mp.Key, "-") {
 			return fmt.Errorf("invalid macos_prefs key: %q must not start with '-'", mp.Key)
+		}
+		if !domainKeyRe.MatchString(mp.Domain) {
+			return fmt.Errorf("macos preference domain %q contains invalid characters", mp.Domain)
+		}
+		if !domainKeyRe.MatchString(mp.Key) {
+			return fmt.Errorf("macos preference key %q contains invalid characters", mp.Key)
 		}
 	}
 	for i, cmd := range rc.PostInstall {

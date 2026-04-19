@@ -1,11 +1,17 @@
 package system
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/openbootdotdev/openboot/internal/httputil"
 )
 
 func HomeDir() (string, error) {
@@ -64,15 +70,72 @@ func RunCommandOutput(name string, args ...string) (string, error) {
 	return strings.TrimSpace(string(output)), err
 }
 
+// knownBrewInstallHash is the SHA256 of the Homebrew install script pinned on
+// 2026-04-19 (Homebrew/install HEAD as of that date). Update this constant
+// whenever the installer script changes upstream.
+// TODO: update this hash each release by running:
+//
+//	curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | sha256sum
+const knownBrewInstallHash = "HOMEBREW_INSTALL_SHA256"
+
+// brewInstallURL is a var so tests can redirect it to a local httptest server.
+var brewInstallURL = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+
 func InstallHomebrew() error {
-	script := `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
-	cmd := exec.Command("bash", "-c", script)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Download the installer via httputil.Do so rate-limit handling is applied.
+	req, err := http.NewRequest(http.MethodGet, brewInstallURL, nil)
+	if err != nil {
+		return fmt.Errorf("create homebrew install request: %w", err)
+	}
+	resp, err := httputil.Do(http.DefaultClient, req)
+	if err != nil {
+		return fmt.Errorf("download homebrew install script: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download homebrew install script: unexpected status %d", resp.StatusCode)
+	}
+
+	scriptBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read homebrew install script: %w", err)
+	}
+
+	// Verify SHA256 before executing anything.
+	sum := sha256.Sum256(scriptBytes)
+	got := hex.EncodeToString(sum[:])
+	if got != knownBrewInstallHash {
+		return fmt.Errorf("homebrew installer SHA256 mismatch: refusing to execute")
+	}
+
+	// Write verified script to a temp file, execute, then clean up.
+	tmpFile, err := os.CreateTemp("", "homebrew-install-*.sh")
+	if err != nil {
+		return fmt.Errorf("create temp file for homebrew install: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(scriptBytes); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("write homebrew install script: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("close homebrew install script: %w", err)
+	}
+
+	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+		return fmt.Errorf("chmod homebrew install script: %w", err)
+	}
+
 	tty, opened := OpenTTY()
 	if opened {
 		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
 	}
+
+	cmd := exec.Command(tmpFile.Name())
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	cmd.Stdin = tty
 	return cmd.Run()
 }

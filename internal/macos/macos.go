@@ -86,7 +86,7 @@ func Configure(prefs []Preference, dryRun bool) error {
 		value := expandHome(pref.Value)
 
 		if dryRun {
-			fmt.Fprintf(os.Stderr, "[DRY-RUN] Would set %s %s = %s (%s)\n", pref.Domain, pref.Key, value, pref.Desc)
+			fmt.Printf("[DRY-RUN] Would set %s %s = %s (%s)\n", pref.Domain, pref.Key, value, pref.Desc)
 			continue
 		}
 
@@ -120,7 +120,7 @@ func CreateScreenshotsDir(dryRun bool) error {
 	dir := filepath.Join(home, "Screenshots")
 
 	if dryRun {
-		fmt.Fprintf(os.Stderr, "[DRY-RUN] Would create %s directory\n", dir)
+		fmt.Printf("[DRY-RUN] Would create %s directory\n", dir)
 		return nil
 	}
 
@@ -132,7 +132,7 @@ func RestartAffectedApps(dryRun bool) error {
 
 	for _, app := range apps {
 		if dryRun {
-			fmt.Fprintf(os.Stderr, "[DRY-RUN] Would restart %s\n", app)
+			fmt.Printf("[DRY-RUN] Would restart %s\n", app)
 			continue
 		}
 

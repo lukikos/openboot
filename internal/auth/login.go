@@ -185,7 +185,7 @@ func pollOnce(pollURL string) (*cliPollResponse, bool, error) {
 }
 
 var openBrowserFunc = func(url string) error {
-	return exec.Command("open", url).Start()
+	return exec.Command("open", url).Start() //nolint:gosec // "open" is a macOS system binary; url is the oauth redirect URI
 }
 
 func openBrowser(url string) error {

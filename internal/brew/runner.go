@@ -27,15 +27,15 @@ type Runner interface {
 type execRunner struct{}
 
 func (execRunner) Output(args ...string) ([]byte, error) {
-	return exec.Command("brew", args...).Output()
+	return exec.Command("brew", args...).Output() //nolint:gosec // "brew" is hardcoded; args are package names
 }
 
 func (execRunner) CombinedOutput(args ...string) ([]byte, error) {
-	return exec.Command("brew", args...).CombinedOutput()
+	return exec.Command("brew", args...).CombinedOutput() //nolint:gosec // "brew" is hardcoded; args are package names
 }
 
 func (execRunner) Run(args ...string) error {
-	cmd := exec.Command("brew", args...)
+	cmd := exec.Command("brew", args...) //nolint:gosec // "brew" is hardcoded; args are package names
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

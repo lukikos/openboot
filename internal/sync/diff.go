@@ -97,23 +97,43 @@ func (d *SyncDiff) TotalChanged() int {
 func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 	d := &SyncDiff{}
 
+	if err := diffPackages(rc, d); err != nil {
+		return nil, err
+	}
+
+	diffDotfiles(rc, d)
+
+	if err := diffShell(rc, d); err != nil {
+		return nil, err
+	}
+
+	if err := diffMacOSPrefs(rc, d); err != nil {
+		return nil, err
+	}
+
+	return d, nil
+}
+
+// diffPackages computes missing/extra differences for all package types
+// (formulae, casks, taps, npm) between the remote config and the local system.
+func diffPackages(rc *config.RemoteConfig, d *SyncDiff) error {
 	// Capture local package state — fail fast on errors to prevent
 	// false positives (showing everything as "missing" if brew is down).
 	localFormulae, err := snapshot.CaptureFormulae()
 	if err != nil {
-		return nil, fmt.Errorf("capture local formulae: %w", err)
+		return fmt.Errorf("capture local formulae: %w", err)
 	}
 	localCasks, err := snapshot.CaptureCasks()
 	if err != nil {
-		return nil, fmt.Errorf("capture local casks: %w", err)
+		return fmt.Errorf("capture local casks: %w", err)
 	}
 	localTaps, err := snapshot.CaptureTaps()
 	if err != nil {
-		return nil, fmt.Errorf("capture local taps: %w", err)
+		return fmt.Errorf("capture local taps: %w", err)
 	}
 	localNpm, err := snapshot.CaptureNpm()
 	if err != nil {
-		return nil, fmt.Errorf("capture local npm: %w", err)
+		return fmt.Errorf("capture local npm: %w", err)
 	}
 
 	// Package diffs — exclude cask names from formulae comparison
@@ -128,71 +148,82 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 	d.MissingCasks, d.ExtraCasks = diffLists(rc.Casks.Names(), localCasks)
 	d.MissingTaps, d.ExtraTaps = diffLists(rc.Taps, localTaps)
 	d.MissingNpm, d.ExtraNpm = diffLists(rc.Npm.Names(), localNpm)
+	return nil
+}
 
-	// Dotfiles diff
-	if rc.DotfilesRepo != "" {
-		localURL := getLocalDotfilesURL()
-		if localURL != rc.DotfilesRepo {
-			d.DotfilesChanged = true
-			d.RemoteDotfiles = rc.DotfilesRepo
-			d.LocalDotfiles = localURL
+// diffDotfiles checks whether the remote dotfiles URL differs from the local one.
+func diffDotfiles(rc *config.RemoteConfig, d *SyncDiff) {
+	if rc.DotfilesRepo == "" {
+		return
+	}
+	localURL := getLocalDotfilesURL()
+	if localURL != rc.DotfilesRepo {
+		d.DotfilesChanged = true
+		d.RemoteDotfiles = rc.DotfilesRepo
+		d.LocalDotfiles = localURL
+	}
+}
+
+// diffShell checks theme and plugin differences when the remote config enables Oh My Zsh.
+func diffShell(rc *config.RemoteConfig, d *SyncDiff) error {
+	if rc.Shell == nil || !rc.Shell.OhMyZsh {
+		return nil
+	}
+	localShell, err := snapshot.CaptureShell()
+	if err != nil {
+		return fmt.Errorf("capture local shell: %w", err)
+	}
+	var sd *ShellDiff
+	if rc.Shell.Theme != "" && rc.Shell.Theme != localShell.Theme {
+		if sd == nil {
+			sd = &ShellDiff{RemoteTheme: rc.Shell.Theme, LocalTheme: localShell.Theme, RemotePlugins: rc.Shell.Plugins, LocalPlugins: localShell.Plugins}
 		}
+		sd.ThemeChanged = true
+	}
+	if len(rc.Shell.Plugins) > 0 && !diff.PluginsEqual(rc.Shell.Plugins, localShell.Plugins) {
+		if sd == nil {
+			sd = &ShellDiff{RemoteTheme: rc.Shell.Theme, LocalTheme: localShell.Theme, RemotePlugins: rc.Shell.Plugins, LocalPlugins: localShell.Plugins}
+		}
+		sd.PluginsChanged = true
+	}
+	d.Shell = sd
+	return nil
+}
+
+// diffMacOSPrefs compares each remote macOS preference against the locally
+// applied value, collecting differences into d.MacOSChanged.
+func diffMacOSPrefs(rc *config.RemoteConfig, d *SyncDiff) error {
+	if len(rc.MacOSPrefs) == 0 {
+		return nil
+	}
+	localPrefs, err := snapshot.CaptureMacOSPrefs()
+	if err != nil {
+		return fmt.Errorf("capture local macos prefs: %w", err)
 	}
 
-	// Shell diff — only when remote config specifies oh-my-zsh
-	if rc.Shell != nil && rc.Shell.OhMyZsh {
-		localShell, err := snapshot.CaptureShell()
-		if err != nil {
-			return nil, fmt.Errorf("capture local shell: %w", err)
-		}
-		var sd *ShellDiff
-		if rc.Shell.Theme != "" && rc.Shell.Theme != localShell.Theme {
-			if sd == nil {
-				sd = &ShellDiff{RemoteTheme: rc.Shell.Theme, LocalTheme: localShell.Theme, RemotePlugins: rc.Shell.Plugins, LocalPlugins: localShell.Plugins}
-			}
-			sd.ThemeChanged = true
-		}
-		if len(rc.Shell.Plugins) > 0 && !diff.PluginsEqual(rc.Shell.Plugins, localShell.Plugins) {
-			if sd == nil {
-				sd = &ShellDiff{RemoteTheme: rc.Shell.Theme, LocalTheme: localShell.Theme, RemotePlugins: rc.Shell.Plugins, LocalPlugins: localShell.Plugins}
-			}
-			sd.PluginsChanged = true
-		}
-		d.Shell = sd
+	type prefKey struct {
+		Domain string
+		Key    string
+	}
+	localMap := make(map[prefKey]string, len(localPrefs))
+	for _, p := range localPrefs {
+		localMap[prefKey{p.Domain, p.Key}] = p.Value
 	}
 
-	// macOS prefs diff
-	if len(rc.MacOSPrefs) > 0 {
-		localPrefs, prefsErr := snapshot.CaptureMacOSPrefs()
-		if prefsErr != nil {
-			return nil, fmt.Errorf("capture local macos prefs: %w", prefsErr)
-		}
-
-		type prefKey struct {
-			Domain string
-			Key    string
-		}
-		localMap := make(map[prefKey]string, len(localPrefs))
-		for _, p := range localPrefs {
-			localMap[prefKey{p.Domain, p.Key}] = p.Value
-		}
-
-		for _, rp := range rc.MacOSPrefs {
-			localVal, exists := localMap[prefKey{rp.Domain, rp.Key}]
-			if !exists || localVal != rp.Value {
-				d.MacOSChanged = append(d.MacOSChanged, MacOSPrefDiff{
-					Domain:      rp.Domain,
-					Key:         rp.Key,
-					Type:        rp.Type,
-					Desc:        rp.Desc,
-					RemoteValue: rp.Value,
-					LocalValue:  localVal,
-				})
-			}
+	for _, rp := range rc.MacOSPrefs {
+		localVal, exists := localMap[prefKey{rp.Domain, rp.Key}]
+		if !exists || localVal != rp.Value {
+			d.MacOSChanged = append(d.MacOSChanged, MacOSPrefDiff{
+				Domain:      rp.Domain,
+				Key:         rp.Key,
+				Type:        rp.Type,
+				Desc:        rp.Desc,
+				RemoteValue: rp.Value,
+				LocalValue:  localVal,
+			})
 		}
 	}
-
-	return d, nil
+	return nil
 }
 
 // diffLists returns (missing, extra) where missing = in remote but not local,

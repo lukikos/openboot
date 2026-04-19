@@ -193,14 +193,14 @@ var execBrewUpgrade = func(formula string) error {
 	repoPath := strings.TrimSpace(string(repoOut))
 
 	// Step 2: fast-forward the tap to pick up the new formula revision.
-	gitCmd := exec.Command("git", "-C", repoPath, "pull", "--ff-only")
+	gitCmd := exec.Command("git", "-C", repoPath, "pull", "--ff-only") //nolint:gosec // "git" is hardcoded; repoPath is derived from brew --repository
 	gitCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
 	if err := gitCmd.Run(); err != nil {
 		return fmt.Errorf("git pull tap: %w", err)
 	}
 
 	// Step 3: upgrade the formula.
-	upgradeCmd := exec.Command("brew", "upgrade", formula)
+	upgradeCmd := exec.Command("brew", "upgrade", formula) //nolint:gosec // "brew" is hardcoded; formula is validated before this call
 	upgradeCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
 	if err := upgradeCmd.Run(); err != nil {
 		return fmt.Errorf("brew upgrade %s: %w", formula, err)
@@ -221,7 +221,7 @@ func doBrewUpgrade(currentVersion, latestVersion string) {
 
 	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
 	fmt.Println()
-	os.Setenv("OPENBOOT_UPGRADING", "1") //nolint:errcheck // non-critical guard env var; failure leaves upgrade loop protection off
+	os.Setenv("OPENBOOT_UPGRADING", "1") //nolint:errcheck,gosec // non-critical guard env var; failure leaves upgrade loop protection off
 	execSelf()
 }
 
@@ -237,7 +237,7 @@ func doDirectUpgrade(currentVersion, latestVersion string) {
 	}
 	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
 	fmt.Println()
-	os.Setenv("OPENBOOT_UPGRADING", "1") //nolint:errcheck // non-critical guard env var; failure leaves upgrade loop protection off
+	os.Setenv("OPENBOOT_UPGRADING", "1") //nolint:errcheck,gosec // non-critical guard env var; failure leaves upgrade loop protection off
 	execSelf()
 }
 
@@ -255,7 +255,7 @@ var execSelf = func() {
 		ui.Muted("Please run the command again to use the new version.")
 		return
 	}
-	if err := syscall.Exec(exe, os.Args, os.Environ()); err != nil {
+	if err := syscall.Exec(exe, os.Args, os.Environ()); err != nil { //nolint:gosec // exe is the current process path; this is an intentional self-restart
 		ui.Warn(fmt.Sprintf("Could not restart: %v", err))
 		ui.Muted("Please run the command again to use the new version.")
 	}
@@ -395,12 +395,12 @@ func DownloadAndReplace() error {
 	needsCleanup := true
 	defer func() {
 		if needsCleanup {
-			os.Remove(tmpPath) //nolint:errcheck // best-effort cleanup
+			os.Remove(tmpPath) //nolint:errcheck,gosec // best-effort cleanup
 		}
 	}()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		f.Close() //nolint:errcheck // already returning a more descriptive error
+		f.Close() //nolint:errcheck,gosec // already returning a more descriptive error
 		return fmt.Errorf("write binary: %w", err)
 	}
 	if err := f.Close(); err != nil {
@@ -413,7 +413,7 @@ func DownloadAndReplace() error {
 		return fmt.Errorf("integrity check failed: %w", err)
 	}
 
-	if err := os.Chmod(tmpPath, 0755); err != nil {
+	if err := os.Chmod(tmpPath, 0755); err != nil { //nolint:gosec // downloaded binary must be executable
 		return fmt.Errorf("chmod: %w", err)
 	}
 
@@ -462,7 +462,7 @@ func parseSemver(v string) [3]int {
 		}
 		n, err := strconv.Atoi(p)
 		if err == nil {
-			result[i] = n
+			result[i] = n //nolint:gosec // bounds checked: SplitN(v, ".", 3) ensures i < 3; result is [3]int
 		}
 	}
 	return result
@@ -547,7 +547,7 @@ func SaveState(state *CheckState) error {
 	}
 
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 

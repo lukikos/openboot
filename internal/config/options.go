@@ -24,13 +24,13 @@ func (c *Config) ToInstallOptions() *InstallOptions {
 // ToInstallState extracts the mutable runtime fields from Config.
 func (c *Config) ToInstallState() *InstallState {
 	return &InstallState{
-		SelectedPkgs:     c.SelectedPkgs,
-		OnlinePkgs:       c.OnlinePkgs,
-		SnapshotTaps:     c.SnapshotTaps,
-		RemoteConfig:     c.RemoteConfig,
-		SnapshotGit:      c.SnapshotGit,
-		SnapshotMacOS:    c.SnapshotMacOS,
-		SnapshotDotfiles:    c.SnapshotDotfiles,
+		SelectedPkgs:         c.SelectedPkgs,
+		OnlinePkgs:           c.OnlinePkgs,
+		SnapshotTaps:         c.SnapshotTaps,
+		RemoteConfig:         c.RemoteConfig,
+		SnapshotGit:          c.SnapshotGit,
+		SnapshotMacOS:        c.SnapshotMacOS,
+		SnapshotDotfiles:     c.SnapshotDotfiles,
 		SnapshotShellOhMyZsh: c.SnapshotShellOhMyZsh,
 		SnapshotShellTheme:   c.SnapshotShellTheme,
 		SnapshotShellPlugins: c.SnapshotShellPlugins,

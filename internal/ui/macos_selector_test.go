@@ -6,9 +6,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/openbootdotdev/openboot/internal/macos"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/macos"
 )
 
 func TestNewMacOSSelector_InitialState(t *testing.T) {

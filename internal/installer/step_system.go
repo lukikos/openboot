@@ -86,7 +86,7 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 
 	var errs []error
 	for i, cmdStr := range plan.PostInstall {
-		c := exec.Command("/bin/zsh", "-c", cmdStr)
+		c := exec.Command("/bin/zsh", "-c", cmdStr) //nolint:gosec // post-install scripts require explicit user opt-in (--allow-post-install flag)
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 		c.Dir = home
@@ -217,7 +217,7 @@ func stepPostInstall(opts *config.InstallOptions, st *config.InstallState) error
 		fmt.Println("[DRY-RUN] Would run the script above")
 	} else {
 		for i, cmdStr := range commands {
-			c := exec.Command("/bin/zsh", "-c", cmdStr)
+			c := exec.Command("/bin/zsh", "-c", cmdStr) //nolint:gosec // post-install scripts require explicit user opt-in (--allow-post-install flag)
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 			c.Dir = home

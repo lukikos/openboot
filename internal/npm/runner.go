@@ -20,11 +20,11 @@ type Runner interface {
 type execRunner struct{}
 
 func (execRunner) Output(args ...string) ([]byte, error) {
-	return exec.Command("npm", args...).Output()
+	return exec.Command("npm", args...).Output() //nolint:gosec // "npm" is a hardcoded binary; args are package names from validated config
 }
 
 func (execRunner) CombinedOutput(args ...string) ([]byte, error) {
-	return exec.Command("npm", args...).CombinedOutput()
+	return exec.Command("npm", args...).CombinedOutput() //nolint:gosec // "npm" is a hardcoded binary; args are package names from validated config
 }
 
 var (

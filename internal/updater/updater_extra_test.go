@@ -197,7 +197,6 @@ func TestDoDirectUpgrade_Failure_NoRestart(t *testing.T) {
 	assert.False(t, restarted, "should not restart after upgrade failure")
 }
 
-
 // ---------------------------------------------------------------------------
 // notifyUpdate — both install flavours
 // ---------------------------------------------------------------------------

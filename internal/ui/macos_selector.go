@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/openbootdotdev/openboot/internal/macos"
 )
 
@@ -38,7 +39,7 @@ func (m MacOSSelectorModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m MacOSSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m MacOSSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocyclo // bubbletea Update dispatches on all message types; splitting breaks the tea.Model contract
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width

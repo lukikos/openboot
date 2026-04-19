@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-04-18T19:06:26Z",
-  "git_sha": "527ebe9",
+  "timestamp": "2026-04-19T02:50:23Z",
+  "git_sha": "da41303",
   "dimensions": {
     "test_coverage": {
-      "raw": "56.9%",
-      "score": 3.79,
+      "raw": "57.1%",
+      "score": 3.81,
       "weight": 25
     },
     "lint_errors": {
-      "raw": "2",
-      "score": 8.67,
+      "raw": "178",
+      "score": 0.00,
       "weight": 20
     },
     "security": {
@@ -23,10 +23,10 @@
       "weight": 15
     },
     "file_size": {
-      "raw": "4",
-      "score": 5.33,
+      "raw": "1",
+      "score": 8.00,
       "weight": 15
     }
   },
-  "total_score": 6.8
+  "total_score": 5.5
 }

@@ -3,9 +3,10 @@ package cli
 import (
 	"testing"
 
-	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/config"
 )
 
 func TestPersistentPreRunE_SetsVersion(t *testing.T) {

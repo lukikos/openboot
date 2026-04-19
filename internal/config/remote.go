@@ -13,8 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openbootdotdev/openboot/internal/system"
 	"gopkg.in/yaml.v3"
+
+	"github.com/openbootdotdev/openboot/internal/system"
 )
 
 var upgradeHintOnce sync.Once

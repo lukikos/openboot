@@ -7,10 +7,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/openbootdotdev/openboot/internal/config"
-	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
 func makeTestSnapshot() *snapshot.Snapshot {

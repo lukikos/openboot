@@ -49,7 +49,7 @@ func IsGumInstalled() bool {
 }
 
 func RunCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+	cmd := exec.Command(name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -57,7 +57,7 @@ func RunCommand(name string, args ...string) error {
 }
 
 func RunCommandSilent(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.Command(name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
 }
@@ -65,7 +65,7 @@ func RunCommandSilent(name string, args ...string) (string, error) {
 // RunCommandOutput runs name with args and returns stdout only (not stderr).
 // Use when stderr output must not contaminate parsed stdout (e.g. version probes, list commands).
 func RunCommandOutput(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.Command(name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
 	output, err := cmd.Output()
 	return strings.TrimSpace(string(output)), err
 }
@@ -116,14 +116,14 @@ func InstallHomebrew() error {
 	defer os.Remove(tmpFile.Name())
 
 	if _, err := tmpFile.Write(scriptBytes); err != nil {
-		tmpFile.Close()
+		tmpFile.Close() //nolint:gosec,errcheck // error-path cleanup; original write error takes precedence
 		return fmt.Errorf("write homebrew install script: %w", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("close homebrew install script: %w", err)
 	}
 
-	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+	if err := os.Chmod(tmpFile.Name(), 0700); err != nil { //nolint:gosec // install script must be executable
 		return fmt.Errorf("chmod homebrew install script: %w", err)
 	}
 
@@ -132,7 +132,7 @@ func InstallHomebrew() error {
 		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
 	}
 
-	cmd := exec.Command(tmpFile.Name())
+	cmd := exec.Command(tmpFile.Name()) //nolint:gosec // script content is SHA256-verified before execution
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = tty
@@ -176,7 +176,7 @@ func HasTTY() bool {
 	if err != nil {
 		return false
 	}
-	f.Close() //nolint:errcheck // probe-only open; close error is non-critical
+	f.Close() //nolint:errcheck,gosec // probe-only open; close error is non-critical
 	return true
 }
 

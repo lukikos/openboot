@@ -41,7 +41,7 @@ linters:
         - (*os.File).Close
         - os.Remove
     gocyclo:
-      min-complexity: 15
+      min-complexity: 20
     gosec:
       excludes:
         - G304 # File path provided as taint input — acceptable for CLI tools

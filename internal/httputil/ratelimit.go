@@ -58,7 +58,7 @@ var sleepFunc = time.Sleep
 // http.NewRequest with a fresh body). In practice, all call sites in this
 // codebase use either no body or bytes.NewReader, both of which support this.
 func Do(client *http.Client, req *http.Request) (*http.Response, error) {
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // URL is caller-controlled and validated upstream; this is our own HTTP client wrapper
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func Do(client *http.Client, req *http.Request) (*http.Response, error) {
 	)
 
 	// Close the first response body before retrying.
-	resp.Body.Close() //nolint:errcheck // best-effort body close before retry
+	resp.Body.Close() //nolint:errcheck,gosec // best-effort body close before retry
 
 	// Reset the request body for the retry if present.
 	if req.GetBody != nil {
@@ -92,13 +92,13 @@ func Do(client *http.Client, req *http.Request) (*http.Response, error) {
 
 	sleepFunc(waitDuration)
 
-	retryResp, retryErr := client.Do(req)
+	retryResp, retryErr := client.Do(req) //nolint:gosec // URL is caller-controlled and validated upstream; this is our own HTTP client wrapper
 	if retryErr != nil {
 		return nil, retryErr
 	}
 
 	if retryResp.StatusCode == http.StatusTooManyRequests {
-		retryResp.Body.Close() //nolint:errcheck // best-effort body close before error return
+		retryResp.Body.Close() //nolint:errcheck,gosec // best-effort body close before error return
 		retrySec := parseRetryAfter(retryResp)
 		if retrySec == 0 {
 			retrySec = retryAfterSec

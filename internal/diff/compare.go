@@ -227,13 +227,13 @@ func diffDotfiles(systemURL, referenceURL string) *DotfilesDiff {
 	}
 
 	// Uncommitted changes (staged + unstaged + untracked)
-	out, err := exec.Command("git", "-C", dotfilesPath, "status", "--porcelain").Output()
+	out, err := exec.Command("git", "-C", dotfilesPath, "status", "--porcelain").Output() //nolint:gosec // "git" is hardcoded; dotfilesPath is a validated local repo path
 	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
 		dd.Dirty = true
 	}
 
 	// Unpushed commits
-	out, err = exec.Command("git", "-C", dotfilesPath, "log", "--oneline", "@{upstream}..HEAD").Output()
+	out, err = exec.Command("git", "-C", dotfilesPath, "log", "--oneline", "@{upstream}..HEAD").Output() //nolint:gosec // "git" is hardcoded; dotfilesPath is a validated local repo path
 	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
 		dd.Unpushed = true
 	}

@@ -67,89 +67,74 @@ func (p *SyncPlan) IsEmpty() bool {
 	return p.TotalActions() == 0
 }
 
+// stepResult tracks success/failure of a single sync step.
+type stepResult struct {
+	count int
+	err   error
+	label string
+}
+
+// executeSyncStep runs fn when items is non-empty, collecting the result.
+func executeSyncStep(items []string, label string, fn func() error) stepResult {
+	if len(items) == 0 {
+		return stepResult{}
+	}
+	if err := fn(); err != nil {
+		return stepResult{label: label, err: err}
+	}
+	return stepResult{count: len(items)}
+}
+
 // Execute applies all planned changes. Errors are collected rather than
 // stopping on the first failure so the caller gets a full summary of what ran.
 func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 	result := &SyncResult{}
 	var errs []error
 
-	// Install taps first (other packages may depend on them)
-	if len(plan.InstallTaps) > 0 {
-		if err := brew.InstallTaps(plan.InstallTaps, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("install taps: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("taps: %v", err))
+	installSteps := []stepResult{
+		// Install taps first (other packages may depend on them)
+		executeSyncStep(plan.InstallTaps, "taps", func() error {
+			return brew.InstallTaps(plan.InstallTaps, dryRun)
+		}),
+		executeSyncStep(plan.InstallFormulae, "formulae", func() error {
+			return brew.Install(plan.InstallFormulae, dryRun)
+		}),
+		executeSyncStep(plan.InstallCasks, "casks", func() error {
+			return brew.InstallCask(plan.InstallCasks, dryRun)
+		}),
+		executeSyncStep(plan.InstallNpm, "npm", func() error {
+			return npm.Install(plan.InstallNpm, dryRun)
+		}),
+	}
+	for _, s := range installSteps {
+		if s.err != nil {
+			errs = append(errs, fmt.Errorf("install %s: %w", s.label, s.err))
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", s.label, s.err))
 		} else {
-			result.Installed += len(plan.InstallTaps)
+			result.Installed += s.count
 		}
 	}
 
-	// Install formulae
-	if len(plan.InstallFormulae) > 0 {
-		if err := brew.Install(plan.InstallFormulae, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("install formulae: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("formulae: %v", err))
-		} else {
-			result.Installed += len(plan.InstallFormulae)
-		}
+	uninstallSteps := []stepResult{
+		executeSyncStep(plan.UninstallTaps, "untap", func() error {
+			return brew.Untap(plan.UninstallTaps, dryRun)
+		}),
+		executeSyncStep(plan.UninstallFormulae, "uninstall formulae", func() error {
+			return brew.Uninstall(plan.UninstallFormulae, dryRun)
+		}),
+		executeSyncStep(plan.UninstallCasks, "uninstall casks", func() error {
+			return brew.UninstallCask(plan.UninstallCasks, dryRun)
+		}),
+		executeSyncStep(plan.UninstallNpm, "uninstall npm", func() error {
+			return npm.Uninstall(plan.UninstallNpm, dryRun)
+		}),
 	}
-
-	// Install casks
-	if len(plan.InstallCasks) > 0 {
-		if err := brew.InstallCask(plan.InstallCasks, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("install casks: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("casks: %v", err))
+	for _, s := range uninstallSteps {
+		if s.err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", s.label, s.err))
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", s.label, s.err))
 		} else {
-			result.Installed += len(plan.InstallCasks)
-		}
-	}
-
-	// Install npm
-	if len(plan.InstallNpm) > 0 {
-		if err := npm.Install(plan.InstallNpm, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("install npm: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("npm: %v", err))
-		} else {
-			result.Installed += len(plan.InstallNpm)
-		}
-	}
-
-	// Uninstall taps
-	if len(plan.UninstallTaps) > 0 {
-		if err := brew.Untap(plan.UninstallTaps, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("untap: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("untap: %v", err))
-		} else {
-			result.Uninstalled += len(plan.UninstallTaps)
-		}
-	}
-
-	// Uninstall formulae
-	if len(plan.UninstallFormulae) > 0 {
-		if err := brew.Uninstall(plan.UninstallFormulae, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("uninstall formulae: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("uninstall formulae: %v", err))
-		} else {
-			result.Uninstalled += len(plan.UninstallFormulae)
-		}
-	}
-
-	// Uninstall casks
-	if len(plan.UninstallCasks) > 0 {
-		if err := brew.UninstallCask(plan.UninstallCasks, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("uninstall casks: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("uninstall casks: %v", err))
-		} else {
-			result.Uninstalled += len(plan.UninstallCasks)
-		}
-	}
-
-	// Uninstall npm
-	if len(plan.UninstallNpm) > 0 {
-		if err := npm.Uninstall(plan.UninstallNpm, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("uninstall npm: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("uninstall npm: %v", err))
-		} else {
-			result.Uninstalled += len(plan.UninstallNpm)
+			result.Uninstalled += s.count
 		}
 	}
 
@@ -178,21 +163,7 @@ func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 
 	// Apply macOS preferences
 	if len(plan.UpdateMacOSPrefs) > 0 {
-		prefs := make([]macos.Preference, len(plan.UpdateMacOSPrefs))
-		for i, rp := range plan.UpdateMacOSPrefs {
-			prefType := rp.Type
-			if prefType == "" {
-				prefType = macos.InferPreferenceType(rp.Value)
-			}
-			prefs[i] = macos.Preference{
-				Domain: rp.Domain,
-				Key:    rp.Key,
-				Type:   prefType,
-				Value:  rp.Value,
-				Desc:   rp.Desc,
-			}
-		}
-		if err := macos.Configure(prefs, dryRun); err != nil {
+		if err := applyMacOSPrefs(plan.UpdateMacOSPrefs, dryRun); err != nil {
 			errs = append(errs, fmt.Errorf("update macos prefs: %w", err))
 			result.Errors = append(result.Errors, fmt.Sprintf("macos: %v", err))
 		} else {
@@ -201,4 +172,24 @@ func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 	}
 
 	return result, errors.Join(errs...)
+}
+
+// applyMacOSPrefs converts remote pref descriptors to macos.Preference values
+// and applies them via macos.Configure.
+func applyMacOSPrefs(remotePrefs []config.RemoteMacOSPref, dryRun bool) error {
+	prefs := make([]macos.Preference, len(remotePrefs))
+	for i, rp := range remotePrefs {
+		prefType := rp.Type
+		if prefType == "" {
+			prefType = macos.InferPreferenceType(rp.Value)
+		}
+		prefs[i] = macos.Preference{
+			Domain: rp.Domain,
+			Key:    rp.Key,
+			Type:   prefType,
+			Value:  rp.Value,
+			Desc:   rp.Desc,
+		}
+	}
+	return macos.Configure(prefs, dryRun)
 }

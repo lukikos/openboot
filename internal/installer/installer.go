@@ -243,7 +243,7 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 	}
 
 	if !opts.DryRun {
-		brew.Cleanup() //nolint:errcheck // best-effort cleanup; failure is non-critical
+		brew.Cleanup() //nolint:errcheck,gosec // best-effort cleanup; failure is non-critical
 	}
 
 	fmt.Println()

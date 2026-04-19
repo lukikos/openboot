@@ -90,14 +90,14 @@ func InstallOhMyZsh(dryRun bool) error {
 	defer os.Remove(tmpFile.Name())
 
 	if _, err := tmpFile.Write(scriptBytes); err != nil {
-		tmpFile.Close()
+		tmpFile.Close() //nolint:gosec,errcheck // error-path cleanup; original write error takes precedence
 		return fmt.Errorf("write omz install script: %w", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		return fmt.Errorf("close omz install script: %w", err)
 	}
 
-	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+	if err := os.Chmod(tmpFile.Name(), 0700); err != nil { //nolint:gosec // install script must be executable
 		return fmt.Errorf("chmod omz install script: %w", err)
 	}
 
@@ -147,7 +147,7 @@ func EnsureBrewShellenv(dryRun bool) error {
 		content += "\n"
 	}
 	content = brewShellenvLine + "\n" + content
-	return os.WriteFile(zshrcPath, []byte(content), 0600)
+	return os.WriteFile(zshrcPath, []byte(content), 0600) //nolint:gosec // path derived from os.UserHomeDir, not user input
 }
 
 func SetDefaultShell(dryRun bool) error {
@@ -232,7 +232,7 @@ func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
 	}
 
 	tmpPath := zshrcPath + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(tmpPath, []byte(content), 0600); err != nil { //nolint:gosec // path derived from os.UserHomeDir, not user input
 		return fmt.Errorf("write .zshrc: %w", err)
 	}
 	if err := os.Rename(tmpPath, zshrcPath); err != nil {

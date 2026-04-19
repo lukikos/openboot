@@ -41,7 +41,7 @@ func LoadState(path string) (*ReminderState, error) {
 
 func SaveState(path string, s *ReminderState) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("create state dir: %w", err)
 	}
 

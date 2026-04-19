@@ -62,6 +62,21 @@ func ValidateDotfilesURL(rawURL string) error {
 }
 
 func (rc *RemoteConfig) Validate() error {
+	if err := validatePackageLists(rc); err != nil {
+		return err
+	}
+	if err := ValidateDotfilesURL(rc.DotfilesRepo); err != nil {
+		return fmt.Errorf("invalid dotfiles_repo: %w", err)
+	}
+	if err := validateMacOSPrefs(rc); err != nil {
+		return err
+	}
+	return validatePostInstall(rc)
+}
+
+// validatePackageLists checks that all formulae, casks, npm packages, and
+// taps have valid names within the allowed length.
+func validatePackageLists(rc *RemoteConfig) error {
 	for _, p := range rc.Packages {
 		if len(p.Name) > maxPackageNameLen {
 			return fmt.Errorf("package name too long (%d chars, max %d): %q", len(p.Name), maxPackageNameLen, p.Name)
@@ -94,9 +109,12 @@ func (rc *RemoteConfig) Validate() error {
 			return fmt.Errorf("invalid tap name: %q (expected format: owner/repo)", t)
 		}
 	}
-	if err := ValidateDotfilesURL(rc.DotfilesRepo); err != nil {
-		return fmt.Errorf("invalid dotfiles_repo: %w", err)
-	}
+	return nil
+}
+
+// validateMacOSPrefs checks that all macOS preference entries use valid types,
+// domains, and keys.
+func validateMacOSPrefs(rc *RemoteConfig) error {
 	validPrefTypes := map[string]bool{"": true, "string": true, "int": true, "bool": true, "float": true}
 	for _, mp := range rc.MacOSPrefs {
 		if !validPrefTypes[mp.Type] {
@@ -115,6 +133,12 @@ func (rc *RemoteConfig) Validate() error {
 			return fmt.Errorf("macos preference key %q contains invalid characters", mp.Key)
 		}
 	}
+	return nil
+}
+
+// validatePostInstall checks that all post-install commands are non-empty,
+// NUL-free, and within the maximum length.
+func validatePostInstall(rc *RemoteConfig) error {
 	for i, cmd := range rc.PostInstall {
 		if strings.TrimSpace(cmd) == "" {
 			return fmt.Errorf("post_install[%d]: command must not be empty or whitespace only", i)

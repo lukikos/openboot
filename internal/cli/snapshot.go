@@ -10,13 +10,14 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/cobra"
+
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/openbootdotdev/openboot/internal/ui"
-	"github.com/spf13/cobra"
 )
 
 var openBrowser = func(url string) error {
-	return exec.Command("open", url).Run()
+	return exec.Command("open", url).Run() //nolint:gosec // "open" is macOS system binary; url is validated by caller
 }
 
 // stderr-only styles so stdout stays clean for --json piping

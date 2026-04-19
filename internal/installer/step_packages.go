@@ -163,7 +163,7 @@ func stepPackageCustomization(opts *config.InstallOptions, st *config.InstallSta
 	return nil
 }
 
-func applyPackages(plan InstallPlan, r Reporter) error {
+func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orchestrates multiple package categories; splitting would obscure the install sequence
 	r.Header("Step 4: Installation")
 	fmt.Println()
 
@@ -251,7 +251,7 @@ func applyPackages(plan InstallPlan, r Reporter) error {
 	return nil
 }
 
-func applyNpm(plan InstallPlan, r Reporter) error {
+func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles npm batch + sequential fallback with per-package error tracking
 	npmPkgs := plan.Npm
 	if len(npmPkgs) == 0 {
 		return nil
@@ -318,7 +318,7 @@ func applyNpm(plan InstallPlan, r Reporter) error {
 		fmt.Println()
 		fmt.Printf("  Retry npm installation? [Y/n] ")
 		var response string
-		fmt.Scanln(&response) //nolint:errcheck // interactive prompt; empty input is valid
+		fmt.Scanln(&response) //nolint:errcheck,gosec // interactive prompt; empty input is valid
 		if strings.ToLower(strings.TrimSpace(response)) == "n" || strings.ToLower(strings.TrimSpace(response)) == "no" {
 			r.Muted("Skipping npm package retry")
 			return lastErr

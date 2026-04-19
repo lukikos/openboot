@@ -42,7 +42,7 @@ type PackageSnapshot struct {
 //   - Structured object: {"formulae":[],"casks":[],"taps":[],"npm":[]}
 //   - Typed object array: [{"name":"git","type":"formula"},{"name":"docker","type":"cask"}]
 //   - Flat string array:  ["git","curl"] (all treated as formulae)
-func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
+func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error { //nolint:gocyclo // parses multiple legacy JSON shapes; each branch is a distinct schema variant
 	// Try structured object first (plain string arrays).
 	type alias PackageSnapshot
 	var obj alias

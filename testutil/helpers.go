@@ -70,4 +70,3 @@ func EnsurePackageNotInstalled(t *testing.T, packageName string) {
 		t.Fatalf("failed to ensure %s is not installed", packageName)
 	}
 }
-

@@ -87,28 +87,7 @@ func Install(packages []string, dryRun bool) error {
 		return nil
 	}
 
-	nodeVersion, err := GetNodeVersion()
-	if err == nil && nodeVersion > 0 {
-		packagesNeedingNode22 := []string{"wrangler", "@cloudflare/wrangler"}
-		needsWarning := false
-		for _, pkg := range packages {
-			for _, needNode22 := range packagesNeedingNode22 {
-				if pkg == needNode22 {
-					needsWarning = true
-					break
-				}
-			}
-			if needsWarning {
-				break
-			}
-		}
-
-		if needsWarning && nodeVersion < 22 {
-			ui.Warn(fmt.Sprintf("Node.js v%d detected. Some packages (like wrangler) require Node.js v22+", nodeVersion))
-			ui.Muted("Consider upgrading Node.js: brew install node@22")
-			fmt.Println()
-		}
-	}
+	warnIfNodeVersionTooLow(packages)
 
 	if dryRun {
 		ui.Info("Would install npm packages:")
@@ -143,49 +122,9 @@ func Install(packages []string, dryRun bool) error {
 
 	ui.Info(fmt.Sprintf("Installing %d npm packages...", len(toInstall)))
 
-	args := append([]string{"install", "-g"}, toInstall...)
-	batchOutput, err := currentRunner().CombinedOutput(args...)
-
-	var failed []string
-	if err == nil {
-		ui.Success(fmt.Sprintf("  ✔ %d npm packages installed", len(toInstall)))
-	} else {
-		batchError := parseNpmError(string(batchOutput))
-		ui.Warn(fmt.Sprintf("Batch install failed (%s), falling back to sequential...", batchError))
-		fmt.Println()
-
-		nowInstalled, err := GetInstalledPackages()
-		if err != nil {
-			return fmt.Errorf("list packages after batch: %w", err)
-		}
-
-		var remaining []string
-		for _, pkg := range toInstall {
-			if !nowInstalled[pkg] {
-				remaining = append(remaining, pkg)
-			}
-		}
-
-		if len(remaining) == 0 {
-			ui.Success("All npm packages already installed after partial batch!")
-		} else {
-			progress := ui.NewStickyProgress(len(remaining))
-			progress.Start()
-
-			for _, pkg := range remaining {
-				progress.SetCurrent(pkg)
-				errMsg := installNpmPackageWithRetry(pkg)
-				if errMsg != "" {
-					progress.PrintLine("  ✗ %s (%s)", pkg, errMsg)
-					failed = append(failed, pkg)
-				} else {
-					progress.PrintLine("  ✔ %s", pkg)
-				}
-				progress.Increment()
-			}
-
-			progress.Finish()
-		}
+	failed, err := installBatch(toInstall)
+	if err != nil {
+		return err
 	}
 
 	if len(failed) > 0 {
@@ -198,6 +137,93 @@ func Install(packages []string, dryRun bool) error {
 	}
 
 	return nil
+}
+
+// warnIfNodeVersionTooLow prints a warning when packages that require Node.js
+// v22+ are requested but the installed version is older.
+func warnIfNodeVersionTooLow(packages []string) {
+	nodeVersion, err := GetNodeVersion()
+	if err != nil || nodeVersion <= 0 {
+		return
+	}
+
+	packagesNeedingNode22 := []string{"wrangler", "@cloudflare/wrangler"}
+	needsWarning := false
+	for _, pkg := range packages {
+		for _, needNode22 := range packagesNeedingNode22 {
+			if pkg == needNode22 {
+				needsWarning = true
+				break
+			}
+		}
+		if needsWarning {
+			break
+		}
+	}
+
+	if needsWarning && nodeVersion < 22 {
+		ui.Warn(fmt.Sprintf("Node.js v%d detected. Some packages (like wrangler) require Node.js v22+", nodeVersion))
+		ui.Muted("Consider upgrading Node.js: brew install node@22")
+		fmt.Println()
+	}
+}
+
+// installBatch attempts a single batch install of all packages. If the batch
+// fails it falls back to sequential per-package installs. Returns the list of
+// package names that could not be installed and any fatal error.
+func installBatch(toInstall []string) (failed []string, err error) {
+	args := append([]string{"install", "-g"}, toInstall...)
+	batchOutput, batchErr := currentRunner().CombinedOutput(args...)
+
+	if batchErr == nil {
+		ui.Success(fmt.Sprintf("  ✔ %d npm packages installed", len(toInstall)))
+		return nil, nil
+	}
+
+	batchError := parseNpmError(string(batchOutput))
+	ui.Warn(fmt.Sprintf("Batch install failed (%s), falling back to sequential...", batchError))
+	fmt.Println()
+
+	return installSequential(toInstall)
+}
+
+// installSequential installs each package individually, skipping those that
+// were already picked up by a partial batch install. Returns failed package names.
+func installSequential(toInstall []string) (failed []string, err error) {
+	nowInstalled, err := GetInstalledPackages()
+	if err != nil {
+		return nil, fmt.Errorf("list packages after batch: %w", err)
+	}
+
+	var remaining []string
+	for _, pkg := range toInstall {
+		if !nowInstalled[pkg] {
+			remaining = append(remaining, pkg)
+		}
+	}
+
+	if len(remaining) == 0 {
+		ui.Success("All npm packages already installed after partial batch!")
+		return nil, nil
+	}
+
+	progress := ui.NewStickyProgress(len(remaining))
+	progress.Start()
+
+	for _, pkg := range remaining {
+		progress.SetCurrent(pkg)
+		errMsg := installNpmPackageWithRetry(pkg)
+		if errMsg != "" {
+			progress.PrintLine("  ✗ %s (%s)", pkg, errMsg)
+			failed = append(failed, pkg)
+		} else {
+			progress.PrintLine("  ✔ %s", pkg)
+		}
+		progress.Increment()
+	}
+
+	progress.Finish()
+	return failed, nil
 }
 
 func Uninstall(packages []string, dryRun bool) error {

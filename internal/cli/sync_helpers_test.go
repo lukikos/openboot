@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openbootdotdev/openboot/internal/config"
-	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/config"
+	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 )
 
 // ── fallbackStr ───────────────────────────────────────────────────────────────

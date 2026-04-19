@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
@@ -136,7 +137,7 @@ func (m SnapshotEditorModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m SnapshotEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m SnapshotEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocyclo // bubbletea Update dispatches on all message types; splitting breaks the tea.Model contract
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -439,7 +440,7 @@ func (m SnapshotEditorModel) getVisibleItems() int {
 	return available
 }
 
-func (m SnapshotEditorModel) View() string {
+func (m SnapshotEditorModel) View() string { //nolint:gocyclo // renders editor sections with per-section formatting; inherent to bubbletea View
 	if m.searchMode {
 		return m.viewSearch()
 	}
@@ -595,7 +596,6 @@ func (m SnapshotEditorModel) viewSearch() string {
 		if m.onlineSearching && rendered < visibleItems {
 			spinner := searchSpinnerFrames[m.searchSpinnerIdx]
 			lines = append(lines, onlineSearchingStyle.Render(fmt.Sprintf("  %s Searching online...", spinner)))
-			rendered++
 		}
 	}
 

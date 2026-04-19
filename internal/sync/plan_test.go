@@ -3,8 +3,9 @@ package sync
 import (
 	"testing"
 
-	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/openbootdotdev/openboot/internal/config"
 )
 
 func TestSyncPlanTotalActions(t *testing.T) {

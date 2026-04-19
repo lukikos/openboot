@@ -172,77 +172,94 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	}
 
 	if len(newCask) > 0 {
-		for _, pkg := range newCask {
-			progress.SetCurrent(pkg)
-			progress.PrintLine("  Installing %s...", pkg)
-			start := time.Now()
-			errMsg := installCaskWithProgress(pkg, progress)
-			elapsed := time.Since(start)
-			progress.IncrementWithStatus(errMsg == "")
-			duration := ui.FormatDuration(elapsed)
-			if errMsg == "" {
-				progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
-				installedCasks = append(installedCasks, pkg)
-			} else {
-				progress.PrintLine("  %s %s", ui.Red("✗ "+pkg+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
-				allFailed = append(allFailed, failedJob{
-					installJob: installJob{name: pkg, isCask: true},
-					errMsg:     errMsg,
-				})
-			}
-		}
+		caskInstalled, caskFailed := installCasksWithProgress(newCask, progress)
+		installedCasks = append(installedCasks, caskInstalled...)
+		allFailed = append(allFailed, caskFailed...)
 	}
 
 	progress.Finish()
 
-	if len(allFailed) > 0 {
-		fmt.Printf("\nRetrying %d failed packages...\n", len(allFailed))
-
-		for _, f := range allFailed {
-			var errMsg string
-			if f.isCask {
-				errMsg = installSmartCaskWithError(f.name)
-			} else {
-				errMsg = installFormulaWithError(f.name)
-			}
-			if errMsg == "" {
-				fmt.Printf("  ✔ %s (retry succeeded)\n", f.name)
-				if f.isCask {
-					installedCasks = append(installedCasks, f.name)
-				} else {
-					installedFormulae = append(installedFormulae, aliasMap[f.name])
-				}
-			} else {
-				fmt.Printf("  ✗ %s (still failed)\n", f.name)
-			}
-		}
-
-		succeededFormulae := make(map[string]bool, len(installedFormulae))
-		for _, p := range installedFormulae {
-			succeededFormulae[p] = true
-		}
-		succeededCasks := make(map[string]bool, len(installedCasks))
-		for _, p := range installedCasks {
-			succeededCasks[p] = true
-		}
-		var stillFailed []failedJob
-		for _, f := range allFailed {
-			if f.isCask {
-				if !succeededCasks[f.name] {
-					stillFailed = append(stillFailed, f)
-				}
-			} else {
-				if !succeededFormulae[aliasMap[f.name]] {
-					stillFailed = append(stillFailed, f)
-				}
-			}
-		}
-		allFailed = stillFailed
-	}
+	allFailed = retryFailedJobs(allFailed, &installedFormulae, &installedCasks, aliasMap)
 
 	handleFailedJobs(allFailed)
 
 	return installedFormulae, installedCasks, nil
+}
+
+// installCasksWithProgress installs cask packages one by one with progress reporting.
+// Returns the successfully installed cask names and any failed jobs.
+func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
+	for _, pkg := range pkgs {
+		progress.SetCurrent(pkg)
+		progress.PrintLine("  Installing %s...", pkg)
+		start := time.Now()
+		errMsg := installCaskWithProgress(pkg, progress)
+		elapsed := time.Since(start)
+		progress.IncrementWithStatus(errMsg == "")
+		duration := ui.FormatDuration(elapsed)
+		if errMsg == "" {
+			progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
+			installed = append(installed, pkg)
+		} else {
+			progress.PrintLine("  %s %s", ui.Red("✗ "+pkg+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
+			failed = append(failed, failedJob{
+				installJob: installJob{name: pkg, isCask: true},
+				errMsg:     errMsg,
+			})
+		}
+	}
+	return installed, failed
+}
+
+// retryFailedJobs retries any failed installations once and updates the installed
+// slices in-place. Returns the subset that still failed after the retry.
+func retryFailedJobs(allFailed []failedJob, installedFormulae, installedCasks *[]string, aliasMap map[string]string) []failedJob {
+	if len(allFailed) == 0 {
+		return nil
+	}
+
+	fmt.Printf("\nRetrying %d failed packages...\n", len(allFailed))
+
+	for _, f := range allFailed {
+		var errMsg string
+		if f.isCask {
+			errMsg = installSmartCaskWithError(f.name)
+		} else {
+			errMsg = installFormulaWithError(f.name)
+		}
+		if errMsg == "" {
+			fmt.Printf("  ✔ %s (retry succeeded)\n", f.name)
+			if f.isCask {
+				*installedCasks = append(*installedCasks, f.name)
+			} else {
+				*installedFormulae = append(*installedFormulae, aliasMap[f.name])
+			}
+		} else {
+			fmt.Printf("  ✗ %s (still failed)\n", f.name)
+		}
+	}
+
+	succeededFormulae := make(map[string]bool, len(*installedFormulae))
+	for _, p := range *installedFormulae {
+		succeededFormulae[p] = true
+	}
+	succeededCasks := make(map[string]bool, len(*installedCasks))
+	for _, p := range *installedCasks {
+		succeededCasks[p] = true
+	}
+	var stillFailed []failedJob
+	for _, f := range allFailed {
+		if f.isCask {
+			if !succeededCasks[f.name] {
+				stillFailed = append(stillFailed, f)
+			}
+		} else {
+			if !succeededFormulae[aliasMap[f.name]] {
+				stillFailed = append(stillFailed, f)
+			}
+		}
+	}
+	return stillFailed
 }
 
 func handleFailedJobs(failed []failedJob) {
@@ -312,7 +329,7 @@ func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
 }
 
 func brewInstallCmd(args ...string) *exec.Cmd {
-	cmd := exec.Command("brew", args...)
+	cmd := exec.Command("brew", args...) //nolint:gosec // "brew" is a hardcoded binary; args are package names validated by caller
 	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
 	return cmd
 }
@@ -456,7 +473,7 @@ func ResolveFormulaNames(names []string) map[string]string {
 	}
 
 	args := append([]string{"info", "--json"}, names...)
-	cmd := exec.Command("brew", args...)
+	cmd := exec.Command("brew", args...) //nolint:gosec // "brew" is a hardcoded binary; args are package names
 	output, err := cmd.Output()
 	if err != nil {
 		return identityMap(names)

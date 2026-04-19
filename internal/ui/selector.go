@@ -6,9 +6,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sahilm/fuzzy"
+
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/search"
-	"github.com/sahilm/fuzzy"
 )
 
 var searchSpinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -109,7 +110,7 @@ func (m SelectorModel) searchItemAt(index int) (config.Package, bool) {
 	return config.Package{}, false
 }
 
-func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocyclo // bubbletea Update dispatches on all message types; splitting breaks the tea.Model contract
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width

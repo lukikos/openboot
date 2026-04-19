@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/openbootdotdev/openboot/internal/config"
 )
 
@@ -331,7 +332,7 @@ func (m SelectorModel) View() string {
 	return padAllLines(strings.Join(lines, "\n"), m.width)
 }
 
-func (m SelectorModel) confirmationView() string {
+func (m SelectorModel) confirmationView() string { //nolint:gocyclo // renders multiple package categories with per-item formatting; inherent to confirmation UI
 	var formulae, casks, npm []string
 	for name, selected := range m.selected {
 		if !selected {
@@ -452,7 +453,7 @@ func (m SelectorModel) confirmationView() string {
 	return padAllLines(boxStyle.Render(content.String()), m.width)
 }
 
-func (m SelectorModel) viewSearch() string {
+func (m SelectorModel) viewSearch() string { //nolint:gocyclo // renders search results across package categories with state-dependent formatting
 	var lines []string
 
 	query := m.searchQuery + "▌"
@@ -534,7 +535,6 @@ func (m SelectorModel) viewSearch() string {
 		if m.onlineSearching {
 			lines = append(lines, "")
 			lines = append(lines, descStyle.Render("  ── Loading online results ──"))
-			itemsRendered += 2
 		} else if len(m.onlineResults) > 0 {
 			lines = append(lines, "")
 			lines = append(lines, onlineHeaderStyle.Render("── Online Results ──"))

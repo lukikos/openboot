@@ -33,92 +33,10 @@ func Clone(repoURL string, dryRun bool) error {
 	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
 
 	if _, err := os.Stat(dotfilesPath); err == nil {
-		gitDir := filepath.Join(dotfilesPath, ".git")
-		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-			fmt.Printf("Dotfiles already exist at %s, skipping clone\n", dotfilesPath)
-			return nil
-		}
-
-		// Check whether the remote URL has changed.
-		remoteChanged := false
-		var currentURL string
-		if out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output(); err == nil {
-			currentURL = strings.TrimSpace(string(out))
-			remoteChanged = currentURL != repoURL
-		}
-
-		if remoteChanged {
-			if dryRun {
-				fmt.Printf("[DRY-RUN] Would backup %s and re-clone from %s\n", dotfilesPath, repoURL)
-				return nil
-			}
-			// Back up the old repo and fall through to a fresh clone.
-			backupPath := dotfilesPath + ".openboot.bak"
-			// Remove stale backup from a previous remote change to avoid rename failure.
-			if _, err := os.Stat(backupPath); err == nil {
-				if err := os.RemoveAll(backupPath); err != nil {
-					return fmt.Errorf("remove stale dotfiles backup %s: %w", backupPath, err)
-				}
-			}
-			fmt.Printf("Dotfiles remote changed from %s to %s, backing up to %s and re-cloning\n", currentURL, repoURL, backupPath)
-			if err := os.Rename(dotfilesPath, backupPath); err != nil {
-				return fmt.Errorf("failed to backup existing dotfiles: %w", err)
-			}
-		} else {
-			if dryRun {
-				fmt.Printf("[DRY-RUN] Would sync latest dotfiles at %s\n", dotfilesPath)
-				return nil
-			}
-			fmt.Printf("Dotfiles already exist at %s, syncing latest changes\n", dotfilesPath)
-			// Use fetch + reset instead of pull to handle dirty states
-			// (unmerged files, mid-rebase, etc.) gracefully.
-			fetchCmd := exec.Command("git", "-C", dotfilesPath, "fetch", "origin")
-			fetchCmd.Stdout = os.Stdout
-			fetchCmd.Stderr = os.Stderr
-			if err := fetchCmd.Run(); err != nil {
-				return err
-			}
-			branch := ""
-			if out, err := exec.Command("git", "-C", dotfilesPath, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
-				branch = strings.TrimSpace(string(out))
-			}
-			// Detached HEAD (e.g. mid-rebase) or failed detection: resolve the remote's default branch.
-			if branch == "" || branch == "HEAD" {
-				if out, err := exec.Command("git", "-C", dotfilesPath, "symbolic-ref", "refs/remotes/origin/HEAD").Output(); err == nil {
-					// Returns e.g. "refs/remotes/origin/main"
-					ref := strings.TrimSpace(string(out))
-					branch = strings.TrimPrefix(ref, "refs/remotes/origin/")
-				}
-			}
-			if branch == "" || branch == "HEAD" {
-				branch = "main"
-			}
-			// Reject branch names that could be misinterpreted as flags or path
-			// expressions by git — the remote HEAD ref comes from the network.
-			if strings.HasPrefix(branch, "-") || strings.Contains(branch, "..") {
-				branch = "main"
-			}
-			if !branchNameRe.MatchString(branch) {
-				branch = "main"
-			}
-			// Guard against silently discarding local uncommitted changes.
-			if statusOut, err := exec.Command("git", "-C", dotfilesPath, "status", "--porcelain").Output(); err == nil && len(strings.TrimSpace(string(statusOut))) > 0 {
-				ui.Warn(fmt.Sprintf("Local uncommitted changes detected in %s", dotfilesPath))
-				if system.HasTTY() {
-					proceed, confirmErr := ui.Confirm("Proceeding will discard all local changes in your dotfiles. Continue?", false)
-					if confirmErr != nil || !proceed {
-						fmt.Printf("Skipping dotfiles sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", branch)
-						return nil
-					}
-				} else {
-					fmt.Printf("Local changes detected in %s — skipping sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", dotfilesPath, branch)
-					return nil
-				}
-			}
-			resetCmd := exec.Command("git", "-C", dotfilesPath, "reset", "--hard", "origin/"+branch)
-			resetCmd.Stdout = os.Stdout
-			resetCmd.Stderr = os.Stderr
-			return resetCmd.Run()
+		// Dotfiles directory already exists — sync or re-clone as appropriate.
+		needsClone, err := handleExistingDotfiles(dotfilesPath, repoURL, dryRun)
+		if err != nil || !needsClone {
+			return err
 		}
 	}
 
@@ -127,10 +45,141 @@ func Clone(repoURL string, dryRun bool) error {
 		return nil
 	}
 
-	cmd := exec.Command("git", "clone", repoURL, dotfilesPath)
+	cmd := exec.Command("git", "clone", repoURL, dotfilesPath) //nolint:gosec // git binary is hardcoded; repoURL is validated by the caller
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// handleExistingDotfiles manages the case where a dotfiles directory already
+// exists. It returns (needsClone, error): needsClone=true means the caller
+// should proceed with a fresh git clone (after backup), false means the
+// operation is complete (either synced or skipped).
+func handleExistingDotfiles(dotfilesPath, repoURL string, dryRun bool) (needsClone bool, err error) {
+	gitDir := filepath.Join(dotfilesPath, ".git")
+	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+		fmt.Printf("Dotfiles already exist at %s, skipping clone\n", dotfilesPath)
+		return false, nil
+	}
+
+	currentURL, remoteChanged := checkRemoteChanged(dotfilesPath, repoURL)
+
+	if remoteChanged {
+		return backupForReclone(dotfilesPath, repoURL, currentURL, dryRun)
+	}
+
+	return false, syncExistingDotfiles(dotfilesPath, dryRun)
+}
+
+// checkRemoteChanged returns the current remote URL and whether it differs from repoURL.
+func checkRemoteChanged(dotfilesPath, repoURL string) (currentURL string, changed bool) {
+	out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output() //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+	if err != nil {
+		return "", false
+	}
+	currentURL = strings.TrimSpace(string(out))
+	return currentURL, currentURL != repoURL
+}
+
+// backupForReclone backs up the existing dotfiles directory so a fresh clone
+// can proceed. Returns (true, nil) on success so the caller continues with cloning.
+func backupForReclone(dotfilesPath, repoURL, currentURL string, dryRun bool) (needsClone bool, err error) {
+	if dryRun {
+		fmt.Printf("[DRY-RUN] Would backup %s and re-clone from %s\n", dotfilesPath, repoURL)
+		return false, nil
+	}
+	backupPath := dotfilesPath + ".openboot.bak"
+	// Remove stale backup from a previous remote change to avoid rename failure.
+	if _, err := os.Stat(backupPath); err == nil {
+		if err := os.RemoveAll(backupPath); err != nil {
+			return false, fmt.Errorf("remove stale dotfiles backup %s: %w", backupPath, err)
+		}
+	}
+	fmt.Printf("Dotfiles remote changed from %s to %s, backing up to %s and re-cloning\n", currentURL, repoURL, backupPath)
+	if err := os.Rename(dotfilesPath, backupPath); err != nil {
+		return false, fmt.Errorf("failed to backup existing dotfiles: %w", err)
+	}
+	return true, nil
+}
+
+// syncExistingDotfiles fetches the latest changes from origin and resets the
+// working tree, prompting the user if there are local uncommitted changes.
+func syncExistingDotfiles(dotfilesPath string, dryRun bool) error {
+	if dryRun {
+		fmt.Printf("[DRY-RUN] Would sync latest dotfiles at %s\n", dotfilesPath)
+		return nil
+	}
+	fmt.Printf("Dotfiles already exist at %s, syncing latest changes\n", dotfilesPath)
+	// Use fetch + reset instead of pull to handle dirty states
+	// (unmerged files, mid-rebase, etc.) gracefully.
+	fetchCmd := exec.Command("git", "-C", dotfilesPath, "fetch", "origin") //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+	fetchCmd.Stdout = os.Stdout
+	fetchCmd.Stderr = os.Stderr
+	if err := fetchCmd.Run(); err != nil {
+		return err
+	}
+
+	branch := resolveBranch(dotfilesPath)
+
+	// Guard against silently discarding local uncommitted changes.
+	if !confirmResetIfDirty(dotfilesPath, branch) {
+		return nil
+	}
+
+	resetCmd := exec.Command("git", "-C", dotfilesPath, "reset", "--hard", "origin/"+branch) //nolint:gosec // git binary is hardcoded; branch is sanitised by resolveBranch
+	resetCmd.Stdout = os.Stdout
+	resetCmd.Stderr = os.Stderr
+	return resetCmd.Run()
+}
+
+// resolveBranch determines the current branch name, falling back to "main" for
+// detached HEAD states or branch names that could be misinterpreted by git.
+func resolveBranch(dotfilesPath string) string {
+	branch := ""
+	if out, err := exec.Command("git", "-C", dotfilesPath, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil { //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+		branch = strings.TrimSpace(string(out))
+	}
+	// Detached HEAD (e.g. mid-rebase) or failed detection: resolve the remote's default branch.
+	if branch == "" || branch == "HEAD" {
+		if out, err := exec.Command("git", "-C", dotfilesPath, "symbolic-ref", "refs/remotes/origin/HEAD").Output(); err == nil { //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+			// Returns e.g. "refs/remotes/origin/main"
+			ref := strings.TrimSpace(string(out))
+			branch = strings.TrimPrefix(ref, "refs/remotes/origin/")
+		}
+	}
+	if branch == "" || branch == "HEAD" {
+		return "main"
+	}
+	// Reject branch names that could be misinterpreted as flags or path
+	// expressions by git — the remote HEAD ref comes from the network.
+	if strings.HasPrefix(branch, "-") || strings.Contains(branch, "..") {
+		return "main"
+	}
+	if !branchNameRe.MatchString(branch) {
+		return "main"
+	}
+	return branch
+}
+
+// confirmResetIfDirty checks for local uncommitted changes and prompts the user
+// to confirm before proceeding. Returns true if it is safe to reset.
+func confirmResetIfDirty(dotfilesPath, branch string) bool {
+	statusOut, err := exec.Command("git", "-C", dotfilesPath, "status", "--porcelain").Output() //nolint:gosec // git binary is hardcoded; path variable is validated repo path
+	if err != nil || len(strings.TrimSpace(string(statusOut))) == 0 {
+		return true
+	}
+	ui.Warn(fmt.Sprintf("Local uncommitted changes detected in %s", dotfilesPath))
+	if system.HasTTY() {
+		proceed, confirmErr := ui.Confirm("Proceeding will discard all local changes in your dotfiles. Continue?", false)
+		if confirmErr != nil || !proceed {
+			fmt.Printf("Skipping dotfiles sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", branch)
+			return false
+		}
+	} else {
+		fmt.Printf("Local changes detected in %s — skipping sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", dotfilesPath, branch)
+		return false
+	}
+	return true
 }
 
 func Link(dryRun bool) error {
@@ -180,7 +229,7 @@ func backupFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", src, err)
 	}
-	if err := os.WriteFile(dst, data, 0644); err != nil {
+	if err := os.WriteFile(dst, data, 0600); err != nil { //nolint:gosec // dst is derived from os.UserHomeDir, not user input
 		return fmt.Errorf("write backup %s: %w", dst, err)
 	}
 	return nil
@@ -295,10 +344,10 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 
 		// Remove Oh-My-Zsh leftover that also blocks the zsh package.
 		if pkg == "zsh" {
-			os.Remove(filepath.Join(home, ".zshrc.pre-oh-my-zsh")) //nolint:errcheck // best-effort removal; file may not exist
+			os.Remove(filepath.Join(home, ".zshrc.pre-oh-my-zsh")) //nolint:errcheck,gosec // best-effort removal; file may not exist
 		}
 
-		cmd := exec.Command("stow", "-v", "-t", home, pkg)
+		cmd := exec.Command("stow", "-v", "-t", home, pkg) //nolint:gosec // "stow" is a hardcoded binary; home and pkg are validated before this point
 		cmd.Dir = dotfilesPath
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

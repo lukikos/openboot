@@ -124,7 +124,7 @@ func CreateScreenshotsDir(dryRun bool) error {
 		return nil
 	}
 
-	return os.MkdirAll(dir, 0755)
+	return os.MkdirAll(dir, 0750)
 }
 
 func RestartAffectedApps(dryRun bool) error {
@@ -137,7 +137,7 @@ func RestartAffectedApps(dryRun bool) error {
 		}
 
 		// killall returns an error if the app isn't running, which is expected and safe to ignore
-		system.RunCommandSilent("killall", app) //nolint:errcheck // non-fatal: app may not be running
+		system.RunCommandSilent("killall", app) //nolint:errcheck,gosec // non-fatal: app may not be running
 	}
 
 	return nil

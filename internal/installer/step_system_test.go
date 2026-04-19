@@ -3,9 +3,10 @@ package installer
 import (
 	"testing"
 
-	"github.com/openbootdotdev/openboot/internal/macos"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/macos"
 )
 
 // TestApplyMacOSPrefs_EmptyPrefs verifies that applyMacOSPrefs is a no-op when

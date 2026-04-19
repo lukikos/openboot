@@ -43,8 +43,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	// Use indent for more readable output during local development
 	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
+	// Only pretty-print in dev builds to keep production responses compact
+	if Version == "dev" {
+		enc.SetIndent("", "  ")
+	}
 	_ = enc.Encode(Get())
 }

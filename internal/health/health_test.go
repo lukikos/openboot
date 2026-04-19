@@ -47,7 +47,8 @@ func TestHandler_OK(t *testing.T) {
 func TestHandler_MethodNotAllowed(t *testing.T) {
 	h := health.Handler("1.0.0")
 
-	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
+	// Also checking PATCH since it's another mutating method that should be rejected
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch} {
 		req := httptest.NewRequest(method, "/health", nil)
 		rr := httptest.NewRecorder()
 		h(rr, req)

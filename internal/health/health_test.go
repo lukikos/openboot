@@ -37,6 +37,11 @@ func TestHandler_OK(t *testing.T) {
 	if s.GoVersion == "" {
 		t.Error("expected non-empty go_version")
 	}
+
+	// Also verify the Content-Type header is set correctly
+	if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type 'application/json', got %q", ct)
+	}
 }
 
 func TestHandler_MethodNotAllowed(t *testing.T) {

@@ -50,7 +50,8 @@ func TestHandler_OK(t *testing.T) {
 }
 
 func TestHandler_MethodNotAllowed(t *testing.T) {
-	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
+	// HEAD is also not allowed and worth testing explicitly alongside the others
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodHead} {
 		req := httptest.NewRequest(method, "/version", nil)
 		w := httptest.NewRecorder()
 

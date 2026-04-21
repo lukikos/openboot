@@ -51,7 +51,8 @@ func TestHandler_OK(t *testing.T) {
 
 func TestHandler_MethodNotAllowed(t *testing.T) {
 	// HEAD is also not allowed and worth testing explicitly alongside the others
-	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodHead} {
+	// Note: PATCH and OPTIONS are also worth considering in the future
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodHead, http.MethodPatch} {
 		req := httptest.NewRequest(method, "/version", nil)
 		w := httptest.NewRecorder()
 

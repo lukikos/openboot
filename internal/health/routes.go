@@ -9,8 +9,10 @@ import "net/http"
 //
 //	GET /health   — liveness probe
 //	GET /healthz  — alias for liveness probe (kubectl convention)
+//	GET /ping     — simple ping/pong check (personal addition)
 func RegisterRoutes(mux *http.ServeMux, version string) {
 	h := Handler(version)
 	mux.Handle("GET /health", h)
 	mux.Handle("GET /healthz", h)
+	mux.Handle("GET /ping", h)
 }
